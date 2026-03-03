@@ -10,203 +10,192 @@ import PhotosUI
 import CoreData
 
 // MARK: - Show Editor View
-/// A beautifully styled modal form for adding or editing a show.
-/// Includes image picking, calendar event creation, and CloudKit sync.
+/// Super simple form for adding shows. Only the essentials are visible by default.
 
 struct ShowEditorView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
 
     let showToEdit: Show?
 
-    // MARK: Form State
+    // MARK: Form State - Essential Fields
     @State private var title = ""
-    @State private var role = ""
     @State private var venue = ""
     @State private var date = Calendar.current.date(byAdding: .day, value: 7,
         to: Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: Date())!)!
+    @State private var flyerData: Data?
+
+    // MARK: Optional Fields (hidden by default)
+    @State private var showMoreOptions = false
     @State private var priceString = ""
     @State private var ticketLink = ""
     @State private var notes = ""
-    @State private var addToCalendar = true
-    @State private var setReminder = false
-    @State private var flyerData: Data?
 
     // Image picking
-    @State private var showImageSourcePicker = false
-    @State private var showCamera = false
-    @State private var showPhotoPicker = false
+    @State private var showImagePicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
 
-    // Alerts
-    @State private var showCalendarDeniedAlert = false
+    // State
     @State private var isSaving = false
+    @State private var showCalendarDeniedAlert = false
 
-    @FocusState private var focusedField: EditorField?
+    @FocusState private var focusedField: Field?
+    private enum Field { case title, venue, price, ticketLink, notes }
 
     private let userID = UserIdentityService.shared.userID
-
-    private enum EditorField {
-        case title, role, venue, price, ticketLink, notes
-    }
-
-    // MARK: - Body
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
-                    // --- Flyer Image ---
-                    flyerImageSection
+                VStack(spacing: 20) {
+                    // --- Flyer Image (Optional but prominent) ---
+                    flyerSection
                         .padding(.top, 8)
 
-                    // --- Form Fields ---
-                    VStack(spacing: 16) {
-                        editorField(
-                            icon: "text.quote",
-                            placeholder: "Show title (e.g., Comedy Night)",
-                            text: $title,
-                            field: .title,
-                            capitalization: .words
-                        )
+                    // --- Essential Fields ---
+                    VStack(spacing: 14) {
+                        // Title
+                        HStack(spacing: 12) {
+                            Image(systemName: "text.quote")
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 24)
+                            TextField("Show title", text: $title)
+                                .focused($focusedField, equals: .title)
+                                .textInputAutocapitalization(.words)
+                                .font(.body)
+                        }
+                        .padding(16)
+                        .background(fieldBackground)
 
-                        editorField(
-                            icon: "person.fill",
-                            placeholder: "Your role (e.g., Headliner)",
-                            text: $role,
-                            field: .role,
-                            capitalization: .words
-                        )
-
-                        editorField(
-                            icon: "mappin.and.ellipse",
-                            placeholder: "Venue name",
-                            text: $venue,
-                            field: .venue,
-                            capitalization: .words
-                        )
+                        // Venue
+                        HStack(spacing: 12) {
+                            Image(systemName: "mappin.and.ellipse")
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 24)
+                            TextField("Venue", text: $venue)
+                                .focused($focusedField, equals: .venue)
+                                .textInputAutocapitalization(.words)
+                                .font(.body)
+                        }
+                        .padding(16)
+                        .background(fieldBackground)
 
                         // Date & Time
                         HStack(spacing: 12) {
                             Image(systemName: "calendar")
-                                .font(.body)
                                 .foregroundStyle(Color.accentColor)
                                 .frame(width: 24)
-                            DatePicker("Date & Time",
-                                       selection: $date,
-                                       in: Date()...,
-                                       displayedComponents: [.date, .hourAndMinute])
-                            .labelsHidden()
+                            DatePicker("", selection: $date, in: Date()..., displayedComponents: [.date, .hourAndMinute])
+                                .labelsHidden()
+                            Spacer()
                         }
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color("CardBackground"))
-                        )
-
-                        editorField(
-                            icon: "dollarsign.circle",
-                            placeholder: "Price (optional)",
-                            text: $priceString,
-                            field: .price,
-                            keyboardType: .decimalPad
-                        )
-
-                        editorField(
-                            icon: "link",
-                            placeholder: "Ticket URL (optional)",
-                            text: $ticketLink,
-                            field: .ticketLink,
-                            keyboardType: .URL,
-                            autocapitalization: false
-                        )
-
-                        // Notes
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "note.text")
-                                    .font(.body)
-                                    .foregroundStyle(Color.accentColor)
-                                    .frame(width: 24)
-                                Text("Notes")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            TextEditor(text: $notes)
-                                .focused($focusedField, equals: .notes)
-                                .frame(minHeight: 80)
-                                .padding(8)
-                                .scrollContentBackground(.hidden)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.secondary.opacity(0.06))
-                                )
-                        }
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color("CardBackground"))
-                        )
+                        .padding(16)
+                        .background(fieldBackground)
                     }
 
-                    // --- Toggles ---
-                    VStack(spacing: 0) {
-                        Toggle(isOn: $addToCalendar) {
-                            Label("Add to Calendar", systemImage: "calendar.badge.plus")
-                        }
-                        .padding(14)
-
-                        if addToCalendar {
-                            Divider()
-                                .padding(.leading, 52)
-                            Toggle(isOn: $setReminder) {
-                                Label("Reminder (1 hr before)", systemImage: "bell.fill")
+                    // --- Add More Details (Expandable) ---
+                    VStack(spacing: 14) {
+                        Button {
+                            withAnimation(.spring(response: 0.3)) {
+                                showMoreOptions.toggle()
                             }
-                            .padding(14)
+                        } label: {
+                            HStack {
+                                Image(systemName: showMoreOptions ? "minus.circle.fill" : "plus.circle.fill")
+                                    .foregroundStyle(Color.accentColor)
+                                Text(showMoreOptions ? "Hide extra details" : "Add more details")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                                Spacer()
+                            }
+                            .padding(.vertical, 8)
+                        }
+
+                        if showMoreOptions {
+                            VStack(spacing: 14) {
+                                // Price
+                                HStack(spacing: 12) {
+                                    Image(systemName: "dollarsign.circle")
+                                        .foregroundStyle(Color.accentColor)
+                                        .frame(width: 24)
+                                    TextField("Price (optional)", text: $priceString)
+                                        .focused($focusedField, equals: .price)
+                                        .keyboardType(.decimalPad)
+                                        .font(.body)
+                                }
+                                .padding(16)
+                                .background(fieldBackground)
+
+                                // Ticket Link
+                                HStack(spacing: 12) {
+                                    Image(systemName: "ticket")
+                                        .foregroundStyle(Color.accentColor)
+                                        .frame(width: 24)
+                                    TextField("Ticket URL (optional)", text: $ticketLink)
+                                        .focused($focusedField, equals: .ticketLink)
+                                        .keyboardType(.URL)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                        .font(.body)
+                                }
+                                .padding(16)
+                                .background(fieldBackground)
+
+                                // Notes
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "note.text")
+                                            .foregroundStyle(Color.accentColor)
+                                            .frame(width: 24)
+                                        Text("Notes")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    TextEditor(text: $notes)
+                                        .focused($focusedField, equals: .notes)
+                                        .frame(minHeight: 60)
+                                        .scrollContentBackground(.hidden)
+                                        .padding(8)
+                                        .background(Color.secondary.opacity(0.08))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                                .padding(16)
+                                .background(fieldBackground)
+                            }
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color("CardBackground"))
-                    )
-                    .animation(.easeInOut(duration: 0.2), value: addToCalendar)
+
+                    Spacer(minLength: 20)
 
                     // --- Save Button ---
                     Button {
-                        let impact = UINotificationFeedbackGenerator()
-                        impact.notificationOccurred(.success)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         Task { await saveShow() }
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 10) {
                             if isSaving {
                                 ProgressView()
                                     .tint(.white)
                             }
                             Text(showToEdit == nil ? "Save Gig" : "Update Gig")
-                                .fontWeight(.bold)
+                                .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 18)
                         .background(
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(title.trimmingCharacters(in: .whitespaces).isEmpty
-                                      ? Color.gray.opacity(0.4)
-                                      : Color.accentColor)
+                                .fill(canSave ? Color.accentColor : Color.gray.opacity(0.3))
                         )
                         .foregroundStyle(.white)
-                        .font(.body)
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
-                    .padding(.top, 4)
+                    .disabled(!canSave || isSaving)
                     .padding(.bottom, 20)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
             }
             .background(Color("AppBackground"))
-            .navigationTitle(showToEdit == nil ? "Add New Gig" : "Edit Gig")
+            .navigationTitle(showToEdit == nil ? "Add Gig" : "Edit Gig")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -217,138 +206,100 @@ struct ShowEditorView: View {
             .onChange(of: selectedPhotoItem) { _, newItem in
                 Task { await loadPhoto(from: newItem) }
             }
-            .alert("Calendar Access Denied",
-                   isPresented: $showCalendarDeniedAlert) {
+            .photosPicker(isPresented: $showImagePicker, selection: $selectedPhotoItem, matching: .images)
+            .alert("Calendar Access", isPresented: $showCalendarDeniedAlert) {
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
                 }
-                Button("OK", role: .cancel) {}
+                Button("Skip", role: .cancel) {}
             } message: {
-                Text("SEE ME LIVE needs calendar access to add your gigs. Please enable it in Settings.")
+                Text("Allow calendar access to automatically add shows to your iPhone calendar.")
             }
-            .confirmationDialog("Add Flyer Image",
-                                isPresented: $showImageSourcePicker,
-                                titleVisibility: .visible) {
-                Button("Take Photo") { showCamera = true }
-                Button("Choose from Library") { showPhotoPicker = true }
-                if flyerData != nil {
-                    Button("Remove Image", role: .destructive) { flyerData = nil }
-                }
-            }
-            .fullScreenCover(isPresented: $showCamera) {
-                CameraPickerView { image in
-                    flyerData = image?.jpegData(compressionQuality: 0.8)
-                }
-            }
-            .photosPicker(isPresented: $showPhotoPicker,
-                          selection: $selectedPhotoItem,
-                          matching: .images)
         }
         .presentationDetents([.large])
         .interactiveDismissDisabled(isSaving)
     }
 
+    // MARK: - Helpers
+
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var fieldBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color("CardBackground"))
+    }
+
     // MARK: - Flyer Section
 
-    private var flyerImageSection: some View {
+    private var flyerSection: some View {
         Button {
-            showImageSourcePicker = true
+            showImagePicker = true
         } label: {
             if let data = flyerData, let uiImage = UIImage(data: data) {
-                ZStack(alignment: .bottomTrailing) {
+                ZStack(alignment: .topTrailing) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
                         .frame(maxWidth: .infinity)
-                        .frame(height: 200)
+                        .frame(height: 180)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
 
-                    Image(systemName: "pencil.circle.fill")
-                        .font(.title2)
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color.accentColor)
-                        .padding(12)
+                    Button {
+                        flyerData = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .black.opacity(0.6))
+                    }
+                    .padding(8)
                 }
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Image(systemName: "camera.fill")
-                        .font(.system(size: 32))
+                        .font(.system(size: 28))
                         .foregroundStyle(Color.accentColor.opacity(0.6))
-                    Text("Tap to add flyer")
+                    Text("Add flyer (optional)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 160)
+                .frame(height: 120)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Color.accentColor.opacity(0.3),
-                                      style: StrokeStyle(lineWidth: 2, dash: [8]))
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.accentColor.opacity(0.04))
-                        )
+                        .strokeBorder(Color.accentColor.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [8]))
+                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.accentColor.opacity(0.04)))
                 )
             }
         }
         .buttonStyle(.plain)
     }
 
-    // MARK: - Editor Field
-
-    @ViewBuilder
-    private func editorField(
-        icon: String,
-        placeholder: String,
-        text: Binding<String>,
-        field: EditorField,
-        capitalization: TextInputAutocapitalization = .never,
-        keyboardType: UIKeyboardType = .default,
-        autocapitalization: Bool = true
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.body)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 24)
-            TextField(placeholder, text: text)
-                .focused($focusedField, equals: field)
-                .textInputAutocapitalization(autocapitalization ? capitalization : .never)
-                .keyboardType(keyboardType)
-                .autocorrectionDisabled(keyboardType == .URL)
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color("CardBackground"))
-        )
-    }
-
-    // MARK: - Populate (Edit Mode)
+    // MARK: - Data
 
     private func populateFromExisting() {
         guard let show = showToEdit else { return }
         title = show.titleOrEmpty
-        role = show.roleOrEmpty
         venue = show.venueOrEmpty
         date = show.dateOrNow
+        flyerData = show.flyerImageData
         priceString = show.price > 0 ? String(format: "%.2f", show.price) : ""
         ticketLink = show.ticketLinkOrEmpty
         notes = show.notesOrEmpty
-        addToCalendar = show.addToCalendar
-        setReminder = show.setReminder
-        flyerData = show.flyerImageData
+        // Show extra options if any optional fields have data
+        if !priceString.isEmpty || !ticketLink.isEmpty || !notes.isEmpty {
+            showMoreOptions = true
+        }
     }
-
-    // MARK: - Photo Loading
 
     private func loadPhoto(from item: PhotosPickerItem?) async {
         guard let item else { return }
         if let data = try? await item.loadTransferable(type: Data.self) {
-            flyerData = UIImage(data: data)?
-                .jpegData(compressionQuality: 0.8)
+            flyerData = UIImage(data: data)?.jpegData(compressionQuality: 0.8)
         }
     }
 
@@ -362,87 +313,45 @@ struct ShowEditorView: View {
         let now = Date()
 
         show.title = title.trimmingCharacters(in: .whitespaces)
-        show.role = role.trimmingCharacters(in: .whitespaces)
         show.venue = venue.trimmingCharacters(in: .whitespaces)
         show.date = date
+        show.flyerImageData = flyerData
         show.price = Double(priceString) ?? 0
         show.ticketLink = ticketLink.trimmingCharacters(in: .whitespaces)
         show.notes = notes.trimmingCharacters(in: .whitespaces)
-        show.flyerImageData = flyerData
-        show.addToCalendar = addToCalendar
-        show.setReminder = setReminder
         show.userID = userID
         show.updatedAt = now
+        show.addToCalendar = true  // Always add to calendar
+        show.setReminder = false
+        show.role = ""
+
         if showToEdit == nil {
             show.createdAt = now
         }
 
-        // Calendar integration.
-        if addToCalendar {
-            if CalendarService.shared.isAuthorized {
+        // Auto-add to calendar (no toggle needed)
+        if CalendarService.shared.isAuthorized {
+            let eventID = CalendarService.shared.createOrUpdateEvent(for: show)
+            show.calendarEventID = eventID
+        } else {
+            let granted = await CalendarService.shared.requestAccess()
+            if granted {
                 let eventID = CalendarService.shared.createOrUpdateEvent(for: show)
                 show.calendarEventID = eventID
             } else {
-                let granted = await CalendarService.shared.requestAccess()
-                if granted {
-                    let eventID = CalendarService.shared.createOrUpdateEvent(for: show)
-                    show.calendarEventID = eventID
-                } else {
-                    showCalendarDeniedAlert = true
-                }
-            }
-        } else {
-            if show.calendarEventID != nil {
-                CalendarService.shared.deleteEvent(for: show)
-                show.calendarEventID = nil
+                showCalendarDeniedAlert = true
             }
         }
 
         show.needsPublicSync = true
         PersistenceController.shared.save(context: viewContext)
-
         await PublicCloudSyncService.shared.saveOrUpdate(show: show, in: viewContext)
 
         dismiss()
     }
 }
 
-// MARK: - Camera Picker (UIImagePickerController wrapper)
-
-private struct CameraPickerView: UIViewControllerRepresentable {
-    let onCapture: (UIImage?) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(onCapture: onCapture) }
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let onCapture: (UIImage?) -> Void
-        init(onCapture: @escaping (UIImage?) -> Void) { self.onCapture = onCapture }
-
-        func imagePickerController(_ picker: UIImagePickerController,
-                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            let image = info[.originalImage] as? UIImage
-            onCapture(image)
-            picker.dismiss(animated: true)
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            onCapture(nil)
-            picker.dismiss(animated: true)
-        }
-    }
-}
-
 #Preview {
     ShowEditorView(showToEdit: nil)
-        .environment(\.managedObjectContext,
-                      PersistenceController.preview.container.viewContext)
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
