@@ -7,9 +7,10 @@
 
 import SwiftUI
 import CoreData
+import UniformTypeIdentifiers
 
 // MARK: - Share Link Sheet View
-/// Simple share sheet that shares a text list of your upcoming shows.
+/// Export and share a beautiful HTML calendar page.
 
 struct ShareLinkSheetView: View {
     @Environment(\.dismiss) private var dismiss
@@ -23,37 +24,11 @@ struct ShareLinkSheetView: View {
         animation: .default
     ) private var upcomingShows: FetchedResults<Show>
 
+    @State private var isGenerating = false
+    @State private var generatedHTML: String?
+    @State private var showShareSheet = false
+    @State private var htmlFileURL: URL?
     @State private var copied = false
-
-    private var shareText: String {
-        var text = "🎤 SEE ME LIVE - Upcoming Shows\n\n"
-        
-        if upcomingShows.isEmpty {
-            text += "No upcoming shows yet!"
-        } else {
-            for (index, show) in upcomingShows.enumerated() {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .short
-                
-                text += "\(index + 1). \(show.titleOrEmpty)\n"
-                text += "   📍 \(show.venueOrEmpty)\n"
-                text += "   📅 \(formatter.string(from: show.dateOrNow))\n"
-                
-                if show.price > 0 {
-                    text += "   💵 $\(String(format: "%.2f", show.price))\n"
-                }
-                
-                if show.hasTicketLink {
-                    text += "   🎟 \(show.ticketLinkOrEmpty)\n"
-                }
-                
-                text += "\n"
-            }
-        }
-        
-        return text
-    }
 
     var body: some View {
         NavigationStack {
@@ -65,77 +40,60 @@ struct ShareLinkSheetView: View {
                     Circle()
                         .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 120, height: 120)
-                    Image(systemName: "doc.text.fill")
+                    Image(systemName: "doc.richtext.fill")
                         .font(.system(size: 56))
                         .foregroundStyle(Color.accentColor)
                 }
 
                 // Title & Description
                 VStack(spacing: 10) {
-                    Text("Share Your Shows")
+                    Text("Export Calendar")
                         .font(.title.bold())
 
-                    Text("Share a text list of all your upcoming performances")
+                    Text("Generate a beautiful webpage with all your upcoming shows")
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
 
-                // Preview
-                ScrollView {
-                    Text(shareText)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Color("CardBackground"))
-                                .shadow(color: .black.opacity(0.05), radius: 8, y: 2)
-                        )
+                // Stats
+                HStack(spacing: 20) {
+                    VStack {
+                        Text("\(upcomingShows.count)")
+                            .font(.system(size: 32, weight: .bold, design: .serif))
+                            .foregroundStyle(Color.accentColor)
+                        Text("Shows")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .frame(maxHeight: 200)
-                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 32)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color("CardBackground"))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .strokeBorder(Color.accentColor.opacity(0.2), lineWidth: 1)
+                        )
+                )
 
                 // Action Buttons
                 VStack(spacing: 14) {
-                    // Copy Button
+                    // Generate & Share Button
                     Button {
-                        UIPasteboard.general.string = shareText
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
-                        withAnimation(.spring(response: 0.3)) {
-                            copied = true
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            withAnimation { copied = false }
-                        }
+                        generateAndShare()
                     } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                                .font(.body.bold())
-                            Text(copied ? "Copied!" : "Copy List")
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .strokeBorder(copied ? Color.green : Color.accentColor, lineWidth: 2)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(copied ? Color.green.opacity(0.1) : Color.clear)
-                                )
-                        )
-                        .foregroundStyle(copied ? .green : Color.accentColor)
-                    }
-
-                    // Share Button
-                    ShareLink(item: shareText) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.body.bold())
-                            Text("Share")
+                            if isGenerating {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.body.bold())
+                            }
+                            Text(isGenerating ? "Generating..." : "Generate & Share")
                                 .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
@@ -146,8 +104,39 @@ struct ShareLinkSheetView: View {
                         )
                         .foregroundStyle(.white)
                     }
+                    .disabled(isGenerating || upcomingShows.isEmpty)
+
+                    // Preview Button
+                    if generatedHTML != nil {
+                        Button {
+                            if let url = htmlFileURL {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "eye")
+                                    .font(.body.bold())
+                                Text("Preview")
+                                    .font(.headline)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                            )
+                            .foregroundStyle(Color.accentColor)
+                        }
+                    }
                 }
                 .padding(.horizontal, 24)
+
+                if upcomingShows.isEmpty {
+                    Text("Add some shows to export your calendar")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
 
                 Spacer()
             }
@@ -158,9 +147,51 @@ struct ShareLinkSheetView: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .sheet(isPresented: $showShareSheet) {
+                if let url = htmlFileURL {
+                    ShareSheet(items: [url])
+                }
+            }
         }
         .presentationDetents([.medium, .large])
     }
+
+    // MARK: - Actions
+
+    private func generateAndShare() {
+        isGenerating = true
+
+        // Small delay for UI feedback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let html = HTMLExportService.generateHTML(
+                shows: Array(upcomingShows),
+                performerName: "Your"
+            )
+            generatedHTML = html
+
+            if let url = HTMLExportService.saveHTMLToFile(html: html) {
+                htmlFileURL = url
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                isGenerating = false
+                showShareSheet = true
+            } else {
+                isGenerating = false
+            }
+        }
+    }
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {
