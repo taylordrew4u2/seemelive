@@ -96,6 +96,58 @@ struct TextOverlay: Identifiable {
     var rotation: Double = 0
 }
 
+// MARK: - Card Style
+
+enum CardStyle: String, CaseIterable, Identifiable {
+    case rounded  = "Rounded"
+    case sharp    = "Sharp"
+    case minimal  = "Minimal"
+    case outlined = "Outlined"
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .rounded:  return "rectangle.roundedtop"
+        case .sharp:    return "rectangle"
+        case .minimal:  return "rectangle.dashed"
+        case .outlined: return "rectangle.inset.filled"
+        }
+    }
+}
+
+// MARK: - Header Style
+
+enum HeaderStyle: String, CaseIterable, Identifiable {
+    case left     = "Left"
+    case centered = "Centered"
+    case minimal  = "Minimal"
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .left:     return "text.alignleft"
+        case .centered: return "text.aligncenter"
+        case .minimal:  return "minus"
+        }
+    }
+}
+
+// MARK: - Font Style
+
+enum FontStyle: String, CaseIterable, Identifiable {
+    case system  = "Default"
+    case rounded = "Rounded"
+    case serif   = "Serif"
+    case mono    = "Mono"
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .system:  return "textformat"
+        case .rounded: return "textformat.abc"
+        case .serif:   return "textformat.alt"
+        case .mono:    return "chevron.left.forwardslash.chevron.right"
+        }
+    }
+}
+
 // MARK: - Export Options
 
 struct ExportOptions {
@@ -106,6 +158,15 @@ struct ExportOptions {
     var showDate:        Bool             = true
     var showBadge:       Bool             = true
     var showBottomBar:   Bool             = true
+    var showPrice:       Bool             = true
+    var showNotes:       Bool             = false
+    var showTickets:     Bool             = true
+
+    var cardStyle:       CardStyle        = .rounded
+    var columns:         Int              = 0        // 0 = auto
+    var cardOpacity:     Double           = 1.0      // 0…1
+    var headerStyle:     HeaderStyle      = .left
+    var fontStyle:       FontStyle        = .system
 
     var customBackground: CustomBackground = CustomBackground()
     var textOverlays: [TextOverlay] = []
@@ -199,6 +260,27 @@ enum ShareImageGenerator {
         return generate(shows: shows, performerName: performerName, options: ExportOptions())
     }
 
+    // MARK: - Font Resolver
+
+    private static func resolvedFont(size: CGFloat, weight: UIFont.Weight, style: FontStyle) -> UIFont {
+        switch style {
+        case .system:
+            return UIFont.systemFont(ofSize: size, weight: weight)
+        case .rounded:
+            let desc = UIFont.systemFont(ofSize: size, weight: weight).fontDescriptor
+                .withDesign(.rounded) ?? UIFont.systemFont(ofSize: size, weight: weight).fontDescriptor
+            return UIFont(descriptor: desc, size: size)
+        case .serif:
+            let desc = UIFont.systemFont(ofSize: size, weight: weight).fontDescriptor
+                .withDesign(.serif) ?? UIFont.systemFont(ofSize: size, weight: weight).fontDescriptor
+            return UIFont(descriptor: desc, size: size)
+        case .mono:
+            let desc = UIFont.systemFont(ofSize: size, weight: weight).fontDescriptor
+                .withDesign(.monospaced) ?? UIFont.systemFont(ofSize: size, weight: weight).fontDescriptor
+            return UIFont(descriptor: desc, size: size)
+        }
+    }
+
     // MARK: - Main Canvas
 
     private static func drawCanvas(in ctx: CGContext, size: CGSize, snapshots: [ShowSnapshot],
@@ -221,16 +303,32 @@ enum ShareImageGenerator {
         // 3. Colors
         let textColor: UIColor = isLight ? UIColor(hex: "#1A1A1A") : .white
         let subColor: UIColor = isLight ? UIColor(hex: "#666666") : UIColor.white.withAlphaComponent(0.65)
-        let cardBG: UIColor = isLight
-            ? UIColor.white.withAlphaComponent(0.85)
-            : UIColor.white.withAlphaComponent(0.08)
-        let cardBorder: UIColor = isLight
-            ? UIColor.black.withAlphaComponent(0.06)
-            : UIColor.white.withAlphaComponent(0.12)
+
+        // Card background with user opacity
+        let baseCardAlpha: CGFloat = isLight ? 0.85 : 0.08
+        let cardBG: UIColor
+        let cardBorder: UIColor
+        switch options.cardStyle {
+        case .rounded, .sharp:
+            cardBG = isLight
+                ? UIColor.white.withAlphaComponent(baseCardAlpha * options.cardOpacity)
+                : UIColor.white.withAlphaComponent(baseCardAlpha * options.cardOpacity)
+            cardBorder = isLight
+                ? UIColor.black.withAlphaComponent(0.06 * options.cardOpacity)
+                : UIColor.white.withAlphaComponent(0.12 * options.cardOpacity)
+        case .minimal:
+            cardBG = UIColor.clear
+            cardBorder = UIColor.clear
+        case .outlined:
+            cardBG = UIColor.clear
+            cardBorder = isLight
+                ? UIColor.black.withAlphaComponent(0.15)
+                : UIColor.white.withAlphaComponent(0.25)
+        }
 
         // 4. Layout metrics
         let pad = size.width * 0.05
-        let headerH = size.width * 0.18  // compact header
+        let headerH: CGFloat = options.headerStyle == .minimal ? size.width * 0.10 : size.width * 0.18
         let bottomH: CGFloat = options.showBottomBar ? size.width * 0.055 : 0
         let gridTop = pad + headerH
         let gridBottom = size.height - bottomH - pad * 0.5
@@ -241,8 +339,13 @@ enum ShareImageGenerator {
         drawHeader(ctx: ctx, size: size, pad: pad, performerName: performerName,
                    options: options, accent: accent, textColor: textColor, subColor: subColor)
 
-        // 6. Card grid
-        let cols = options.sizePreset.isVertical ? 2 : 3
+        // 6. Card grid — user-defined or auto columns
+        let cols: Int
+        if options.columns > 0 {
+            cols = options.columns
+        } else {
+            cols = options.sizePreset.isVertical ? 2 : 3
+        }
         drawCardGrid(ctx: ctx, allShows: allShows, options: options,
                      gridOrigin: CGPoint(x: pad, y: gridTop),
                      gridSize: CGSize(width: gridW, height: gridH),
@@ -266,56 +369,122 @@ enum ShareImageGenerator {
                                     performerName: String, options: ExportOptions,
                                     accent: UIColor, textColor: UIColor, subColor: UIColor) {
         let topY = pad
-
-        // Performer name — large, left-aligned
-        let nameSz = size.width * 0.065
-        let nameFont = UIFont.systemFont(ofSize: nameSz, weight: .bold)
         let name = performerName.isEmpty ? "My Shows" : performerName
-        drawText(name, at: CGPoint(x: pad, y: topY), font: nameFont,
-                 color: textColor, maxWidth: size.width * 0.6, canvasHeight: size.height)
+        let fontSt = options.fontStyle
 
-        // "SEE ME LIVE" pill badge — top right
-        if options.showBadge {
-            let badgeSz = size.width * 0.02
-            let badgeFont = UIFont.systemFont(ofSize: badgeSz, weight: .heavy)
-            let badgeText = "SEE ME LIVE" as NSString
-            let badgeAttrs: [NSAttributedString.Key: Any] = [.font: badgeFont, .foregroundColor: UIColor.white]
-            let badgeTextSize = badgeText.size(withAttributes: badgeAttrs)
-            let pillW = badgeTextSize.width + badgeSz * 3
-            let pillH = badgeTextSize.height + badgeSz * 1.5
-            let pillX = size.width - pad - pillW
-            let pillY = topY + nameSz * 0.15
+        switch options.headerStyle {
+        case .left:
+            // Performer name — large, left-aligned
+            let nameSz = size.width * 0.065
+            let nameFont = resolvedFont(size: nameSz, weight: .bold, style: fontSt)
+            drawText(name, at: CGPoint(x: pad, y: topY), font: nameFont,
+                     color: textColor, maxWidth: size.width * 0.6, canvasHeight: size.height)
 
-            let pillRect = CGRect(x: pillX, y: pillY, width: pillW, height: pillH)
-            let pillPath = UIBezierPath(roundedRect: pillRect, cornerRadius: pillH / 2)
-            ctx.saveGState()
-            ctx.setFillColor(accent.cgColor)
-            ctx.addPath(pillPath.cgPath)
-            ctx.fillPath()
-            ctx.restoreGState()
+            // "SEE ME LIVE" pill badge — top right
+            if options.showBadge {
+                drawBadgePill(ctx: ctx, size: size, pad: pad, topY: topY + nameSz * 0.15,
+                              accent: accent, fontSt: fontSt)
+            }
 
+            // Subtitle line
+            let subY = topY + nameSz * 1.35
+            let subSz = size.width * 0.026
+            let subFont = resolvedFont(size: subSz, weight: .medium, style: fontSt)
+            drawText("Upcoming Schedule", at: CGPoint(x: pad, y: subY), font: subFont,
+                     color: subColor, maxWidth: size.width * 0.5, canvasHeight: size.height)
+
+            // Thin divider line
+            let divY = subY + subSz * 2
+            ctx.setStrokeColor(textColor.withAlphaComponent(0.1).cgColor)
+            ctx.setLineWidth(1)
+            ctx.move(to: CGPoint(x: pad, y: divY))
+            ctx.addLine(to: CGPoint(x: size.width - pad, y: divY))
+            ctx.strokePath()
+
+        case .centered:
+            // Badge above name, centered
+            var curY = topY
+            if options.showBadge {
+                let badgeSz = size.width * 0.02
+                let badgeFont = resolvedFont(size: badgeSz, weight: .heavy, style: fontSt)
+                let badgeText = "SEE ME LIVE" as NSString
+                let badgeAttrs: [NSAttributedString.Key: Any] = [.font: badgeFont, .foregroundColor: accent]
+                let badgeTextSize = badgeText.size(withAttributes: badgeAttrs)
+                let bx = (size.width - badgeTextSize.width) / 2
+                UIGraphicsPushContext(ctx)
+                badgeText.draw(at: CGPoint(x: bx, y: curY), withAttributes: badgeAttrs)
+                UIGraphicsPopContext()
+                curY += badgeTextSize.height + size.width * 0.015
+            }
+
+            let nameSz = size.width * 0.07
+            let nameFont = resolvedFont(size: nameSz, weight: .bold, style: fontSt)
+            let nameAttrs: [NSAttributedString.Key: Any] = [.font: nameFont, .foregroundColor: textColor]
+            let nameSize = (name as NSString).size(withAttributes: nameAttrs)
+            let nx = (size.width - nameSize.width) / 2
             UIGraphicsPushContext(ctx)
-            badgeText.draw(at: CGPoint(x: pillX + badgeSz * 1.5,
-                                        y: pillY + badgeSz * 0.75),
-                           withAttributes: badgeAttrs)
+            (name as NSString).draw(at: CGPoint(x: nx, y: curY), withAttributes: nameAttrs)
             UIGraphicsPopContext()
+            curY += nameSize.height + size.width * 0.01
+
+            let subSz = size.width * 0.024
+            let subFont = resolvedFont(size: subSz, weight: .medium, style: fontSt)
+            let subAttrs: [NSAttributedString.Key: Any] = [.font: subFont, .foregroundColor: subColor]
+            let subText = "Upcoming Schedule" as NSString
+            let subSize = subText.size(withAttributes: subAttrs)
+            let sx = (size.width - subSize.width) / 2
+            UIGraphicsPushContext(ctx)
+            subText.draw(at: CGPoint(x: sx, y: curY), withAttributes: subAttrs)
+            UIGraphicsPopContext()
+
+            // Centered short divider
+            let divY = curY + subSize.height + size.width * 0.015
+            let divW = size.width * 0.15
+            ctx.setStrokeColor(accent.withAlphaComponent(0.4).cgColor)
+            ctx.setLineWidth(2)
+            ctx.move(to: CGPoint(x: (size.width - divW) / 2, y: divY))
+            ctx.addLine(to: CGPoint(x: (size.width + divW) / 2, y: divY))
+            ctx.strokePath()
+
+        case .minimal:
+            // Just the performer name, small, left-aligned
+            let nameSz = size.width * 0.04
+            let nameFont = resolvedFont(size: nameSz, weight: .semibold, style: fontSt)
+            drawText(name, at: CGPoint(x: pad, y: topY), font: nameFont,
+                     color: textColor, maxWidth: size.width * 0.5, canvasHeight: size.height)
+
+            if options.showBadge {
+                drawBadgePill(ctx: ctx, size: size, pad: pad, topY: topY,
+                              accent: accent, fontSt: fontSt)
+            }
         }
+    }
 
-        // Subtitle line
-        let subY = topY + nameSz * 1.35
-        let subSz = size.width * 0.026
-        let subFont = UIFont.systemFont(ofSize: subSz, weight: .medium)
-        let subStr = "Upcoming Schedule"
-        drawText(subStr, at: CGPoint(x: pad, y: subY), font: subFont,
-                 color: subColor, maxWidth: size.width * 0.5, canvasHeight: size.height)
+    /// Draws the "SEE ME LIVE" pill badge at top-right
+    private static func drawBadgePill(ctx: CGContext, size: CGSize, pad: CGFloat,
+                                       topY: CGFloat, accent: UIColor, fontSt: FontStyle) {
+        let badgeSz = size.width * 0.02
+        let badgeFont = resolvedFont(size: badgeSz, weight: .heavy, style: fontSt)
+        let badgeText = "SEE ME LIVE" as NSString
+        let badgeAttrs: [NSAttributedString.Key: Any] = [.font: badgeFont, .foregroundColor: UIColor.white]
+        let badgeTextSize = badgeText.size(withAttributes: badgeAttrs)
+        let pillW = badgeTextSize.width + badgeSz * 3
+        let pillH = badgeTextSize.height + badgeSz * 1.5
+        let pillX = size.width - pad - pillW
+        let pillY = topY
 
-        // Thin divider line
-        let divY = subY + subSz * 2
-        ctx.setStrokeColor(textColor.withAlphaComponent(0.1).cgColor)
-        ctx.setLineWidth(1)
-        ctx.move(to: CGPoint(x: pad, y: divY))
-        ctx.addLine(to: CGPoint(x: size.width - pad, y: divY))
-        ctx.strokePath()
+        let pillRect = CGRect(x: pillX, y: pillY, width: pillW, height: pillH)
+        let pillPath = UIBezierPath(roundedRect: pillRect, cornerRadius: pillH / 2)
+        ctx.saveGState()
+        ctx.setFillColor(accent.cgColor)
+        ctx.addPath(pillPath.cgPath)
+        ctx.fillPath()
+        ctx.restoreGState()
+
+        UIGraphicsPushContext(ctx)
+        badgeText.draw(at: CGPoint(x: pillX + badgeSz * 1.5, y: pillY + badgeSz * 0.75),
+                       withAttributes: badgeAttrs)
+        UIGraphicsPopContext()
     }
 
     // MARK: - Card Grid
@@ -342,14 +511,23 @@ enum ShareImageGenerator {
 
         let cardW = (gridSize.width - gap * CGFloat(cols - 1)) / CGFloat(cols)
         let cardH = (gridSize.height - gap * CGFloat(rows - 1)) / CGFloat(rows)
-        let cornerR: CGFloat = cardW * 0.06
+        let cornerR: CGFloat
+        switch options.cardStyle {
+        case .rounded:  cornerR = cardW * 0.06
+        case .sharp:    cornerR = 0
+        case .minimal:  cornerR = 0
+        case .outlined: cornerR = cardW * 0.04
+        }
+
+        let fontSt = options.fontStyle
 
         // Scale fonts relative to card size
-        let scale = min(cardW / 300, cardH / 200)  // normalize to a reference card
+        let scale = min(cardW / 300, cardH / 200)
         let titleSz  = max(12, 18 * scale)
         let venueSz  = max(9, 13 * scale)
         let timeSz   = max(8, 12 * scale)
         let priceSz  = max(8, 11 * scale)
+        let notesSz  = max(7, 10 * scale)
         let dateBadgeSz  = max(8, 11 * scale)
         let dateDaySz    = max(14, 24 * scale)
         let dateBadgeR   = max(16, 28 * scale)
@@ -363,20 +541,24 @@ enum ShareImageGenerator {
             let cardRect = CGRect(x: cx, y: cy, width: cardW, height: cardH)
             let cardPath = UIBezierPath(roundedRect: cardRect, cornerRadius: cornerR)
 
-            // Card background (frosted glass)
-            ctx.saveGState()
-            ctx.setFillColor(cardBG.cgColor)
-            ctx.addPath(cardPath.cgPath)
-            ctx.fillPath()
-            ctx.restoreGState()
+            // Card background
+            if cardBG != UIColor.clear {
+                ctx.saveGState()
+                ctx.setFillColor(cardBG.cgColor)
+                ctx.addPath(cardPath.cgPath)
+                ctx.fillPath()
+                ctx.restoreGState()
+            }
 
             // Card border
-            ctx.saveGState()
-            ctx.setStrokeColor(cardBorder.cgColor)
-            ctx.setLineWidth(1)
-            ctx.addPath(cardPath.cgPath)
-            ctx.strokePath()
-            ctx.restoreGState()
+            if cardBorder != UIColor.clear {
+                ctx.saveGState()
+                ctx.setStrokeColor(cardBorder.cgColor)
+                ctx.setLineWidth(options.cardStyle == .outlined ? 1.5 : 1)
+                ctx.addPath(cardPath.cgPath)
+                ctx.strokePath()
+                ctx.restoreGState()
+            }
 
             let inset = cardW * 0.08
             let contentX = cx + inset
@@ -395,7 +577,7 @@ enum ShareImageGenerator {
             ctx.restoreGState()
 
             // Month text in badge
-            let monthFont = UIFont.systemFont(ofSize: dateBadgeSz, weight: .heavy)
+            let monthFont = resolvedFont(size: dateBadgeSz, weight: .heavy, style: fontSt)
             let monthAttrs: [NSAttributedString.Key: Any] = [.font: monthFont, .foregroundColor: accent]
             let monthStr = show.monthAbbrev as NSString
             let monthSize = monthStr.size(withAttributes: monthAttrs)
@@ -406,7 +588,7 @@ enum ShareImageGenerator {
             UIGraphicsPopContext()
 
             // Day number in badge
-            let dayFont = UIFont.systemFont(ofSize: dateDaySz, weight: .bold)
+            let dayFont = resolvedFont(size: dateDaySz, weight: .bold, style: fontSt)
             let dayAttrs: [NSAttributedString.Key: Any] = [.font: dayFont, .foregroundColor: textColor]
             let dayStr = show.dayNumber as NSString
             let daySize = dayStr.size(withAttributes: dayAttrs)
@@ -419,7 +601,7 @@ enum ShareImageGenerator {
             // Title — to the right of the badge
             let titleX = badgeCenterX + dateBadgeR + inset * 0.6
             let titleW = contentW - (dateBadgeR * 2 + inset * 0.6)
-            let titleFont = UIFont.systemFont(ofSize: titleSz, weight: .semibold)
+            let titleFont = resolvedFont(size: titleSz, weight: .semibold, style: fontSt)
 
             drawText(show.titleOrEmpty, at: CGPoint(x: titleX, y: curY + dateBadgeR * 0.15),
                      font: titleFont, color: textColor,
@@ -427,7 +609,7 @@ enum ShareImageGenerator {
 
             // Role (smaller, below title if room)
             if !show.roleOrEmpty.isEmpty {
-                let roleFont = UIFont.systemFont(ofSize: venueSz, weight: .medium)
+                let roleFont = resolvedFont(size: venueSz, weight: .medium, style: fontSt)
                 drawText(show.roleOrEmpty,
                          at: CGPoint(x: titleX, y: curY + dateBadgeR * 0.15 + titleSz * 1.3),
                          font: roleFont, color: accent,
@@ -436,17 +618,19 @@ enum ShareImageGenerator {
 
             curY += dateBadgeR * 2 + inset * 0.4
 
-            // Divider inside card
-            ctx.setStrokeColor(textColor.withAlphaComponent(0.08).cgColor)
-            ctx.setLineWidth(0.5)
-            ctx.move(to: CGPoint(x: contentX, y: curY))
-            ctx.addLine(to: CGPoint(x: contentX + contentW, y: curY))
-            ctx.strokePath()
+            // Divider inside card (skip for minimal style)
+            if options.cardStyle != .minimal {
+                ctx.setStrokeColor(textColor.withAlphaComponent(0.08).cgColor)
+                ctx.setLineWidth(0.5)
+                ctx.move(to: CGPoint(x: contentX, y: curY))
+                ctx.addLine(to: CGPoint(x: contentX + contentW, y: curY))
+                ctx.strokePath()
+            }
             curY += inset * 0.4
 
-            // Venue with pin icon (text only — no SF Symbols in CGContext)
+            // Venue
             if options.showVenue && !show.venueOrEmpty.isEmpty {
-                let venueFont = UIFont.systemFont(ofSize: venueSz, weight: .medium)
+                let venueFont = resolvedFont(size: venueSz, weight: .medium, style: fontSt)
                 drawText("📍 " + show.venueOrEmpty,
                          at: CGPoint(x: contentX, y: curY),
                          font: venueFont, color: subColor,
@@ -456,7 +640,7 @@ enum ShareImageGenerator {
 
             // Time
             if options.showDate {
-                let timeFont = UIFont.systemFont(ofSize: timeSz, weight: .regular)
+                let timeFont = resolvedFont(size: timeSz, weight: .regular, style: fontSt)
                 drawText("🕐 " + show.timeString,
                          at: CGPoint(x: contentX, y: curY),
                          font: timeFont, color: subColor,
@@ -464,10 +648,23 @@ enum ShareImageGenerator {
                 curY += timeSz * 1.6
             }
 
+            // Notes (truncated)
+            if options.showNotes && !show.notesOrEmpty.isEmpty {
+                let notesFont = UIFont.italicSystemFont(ofSize: notesSz)
+                let truncated = show.notesOrEmpty.count > 50
+                    ? String(show.notesOrEmpty.prefix(47)) + "..."
+                    : show.notesOrEmpty
+                drawText(truncated,
+                         at: CGPoint(x: contentX, y: curY),
+                         font: notesFont, color: subColor.withAlphaComponent(0.7),
+                         maxWidth: contentW, canvasHeight: cardRect.maxY - inset)
+                curY += notesSz * 1.6
+            }
+
             // Price tag — bottom of card
             let priceY = cardRect.maxY - inset - priceSz * 1.8
-            if priceY > curY {
-                let priceFont = UIFont.systemFont(ofSize: priceSz, weight: .semibold)
+            if options.showPrice && priceY > curY {
+                let priceFont = resolvedFont(size: priceSz, weight: .semibold, style: fontSt)
                 let priceStr = show.price > 0 ? show.priceFormatted : "FREE"
                 let priceAttrs: [NSAttributedString.Key: Any] = [
                     .font: priceFont,
@@ -496,8 +693,8 @@ enum ShareImageGenerator {
                 UIGraphicsPopContext()
 
                 // Ticket indicator
-                if show.hasTicketLink {
-                    let ticketFont = UIFont.systemFont(ofSize: priceSz * 0.85, weight: .medium)
+                if options.showTickets && show.hasTicketLink {
+                    let ticketFont = resolvedFont(size: priceSz * 0.85, weight: .medium, style: fontSt)
                     let ticketX = contentX + pricePillRect.width + pillPad
                     drawText("🎟", at: CGPoint(x: ticketX, y: priceY + pillPad * 0.3),
                              font: ticketFont, color: subColor,

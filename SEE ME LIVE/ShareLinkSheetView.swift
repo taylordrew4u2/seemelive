@@ -198,17 +198,143 @@ struct ShareLinkSheetView: View {
                         }
                     }
 
+                    // ── HEADER STYLE ─────────────────────────────────
+                    sectionCard(title: "Header Style", icon: "text.alignleft") {
+                        HStack(spacing: 8) {
+                            ForEach(HeaderStyle.allCases) { style in
+                                let selected = options.headerStyle == style
+                                Button { options.headerStyle = style } label: {
+                                    VStack(spacing: 4) {
+                                        Image(systemName: style.icon)
+                                            .font(.system(size: 16))
+                                        Text(style.rawValue)
+                                            .font(.system(size: 11, weight: .semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 9)
+                                    .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                                    .foregroundStyle(selected ? .white : .primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // ── FONT STYLE ───────────────────────────────────
+                    sectionCard(title: "Font", icon: "textformat") {
+                        HStack(spacing: 8) {
+                            ForEach(FontStyle.allCases) { style in
+                                let selected = options.fontStyle == style
+                                Button { options.fontStyle = style } label: {
+                                    VStack(spacing: 4) {
+                                        Image(systemName: style.icon)
+                                            .font(.system(size: 14))
+                                        Text(style.rawValue)
+                                            .font(.system(size: 10, weight: .semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 9)
+                                    .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                                    .foregroundStyle(selected ? .white : .primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // ── CARD STYLE ───────────────────────────────────
+                    sectionCard(title: "Card Style", icon: "rectangle.on.rectangle") {
+                        VStack(spacing: 12) {
+                            HStack(spacing: 8) {
+                                ForEach(CardStyle.allCases) { style in
+                                    let selected = options.cardStyle == style
+                                    Button { options.cardStyle = style } label: {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: style.icon)
+                                                .font(.system(size: 16))
+                                            Text(style.rawValue)
+                                                .font(.system(size: 10, weight: .semibold))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 9)
+                                        .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                                        .foregroundStyle(selected ? .white : .primary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+
+                            // Card opacity slider (only for rounded/sharp)
+                            if options.cardStyle == .rounded || options.cardStyle == .sharp {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "circle.dotted")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                    Slider(value: $options.cardOpacity, in: 0.1...1.0, step: 0.05)
+                                        .tint(Color.accentColor)
+                                    Image(systemName: "circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                    Text("\(Int(options.cardOpacity * 100))%")
+                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 36)
+                                }
+                            }
+                        }
+                    }
+
+                    // ── LAYOUT COLUMNS ────────────────────────────────
+                    sectionCard(title: "Grid Columns", icon: "square.grid.2x2") {
+                        HStack(spacing: 8) {
+                            ForEach([0, 1, 2, 3, 4], id: \.self) { col in
+                                let selected = options.columns == col
+                                Button { options.columns = col } label: {
+                                    Text(col == 0 ? "Auto" : "\(col)")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                        .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                                        .foregroundStyle(selected ? .white : .primary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
                     // ── TOGGLES ───────────────────────────────────────
                     sectionCard(title: "Include", icon: "checklist") {
                         VStack(spacing: 0) {
                             Toggle(isOn: $options.showDate) {
-                                Label("Date", systemImage: "calendar")
+                                Label("Date & Time", systemImage: "calendar")
                                     .font(.subheadline)
                             }
                             .tint(Color.accentColor)
                             Divider().padding(.vertical, 6)
                             Toggle(isOn: $options.showVenue) {
                                 Label("Venue", systemImage: "mappin.circle")
+                                    .font(.subheadline)
+                            }
+                            .tint(Color.accentColor)
+                            Divider().padding(.vertical, 6)
+                            Toggle(isOn: $options.showPrice) {
+                                Label("Price", systemImage: "dollarsign.circle")
+                                    .font(.subheadline)
+                            }
+                            .tint(Color.accentColor)
+                            Divider().padding(.vertical, 6)
+                            Toggle(isOn: $options.showTickets) {
+                                Label("Ticket Link", systemImage: "ticket")
+                                    .font(.subheadline)
+                            }
+                            .tint(Color.accentColor)
+                            Divider().padding(.vertical, 6)
+                            Toggle(isOn: $options.showNotes) {
+                                Label("Notes", systemImage: "note.text")
                                     .font(.subheadline)
                             }
                             .tint(Color.accentColor)
@@ -311,6 +437,14 @@ struct ShareLinkSheetView: View {
         .onChange(of: options.showVenue)       { regenerateImage() }
         .onChange(of: options.showBadge)       { regenerateImage() }
         .onChange(of: options.showBottomBar)   { regenerateImage() }
+        .onChange(of: options.showPrice)       { regenerateImage() }
+        .onChange(of: options.showNotes)       { regenerateImage() }
+        .onChange(of: options.showTickets)     { regenerateImage() }
+        .onChange(of: options.cardStyle)       { regenerateImage() }
+        .onChange(of: options.columns)         { regenerateImage() }
+        .onChange(of: options.cardOpacity)     { regenerateImage() }
+        .onChange(of: options.headerStyle)     { regenerateImage() }
+        .onChange(of: options.fontStyle)       { regenerateImage() }
         .onChange(of: accentColor)             { regenerateImage() }
     }
 
