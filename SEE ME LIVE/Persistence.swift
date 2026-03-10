@@ -44,7 +44,9 @@ struct PersistenceController {
         container = NSPersistentCloudKitContainer(name: "SEE_ME_LIVE")
 
         if inMemory {
-            container.persistentStoreDescriptions.first!.url = URL(fileURLWithPath: "/dev/null")
+            if let description = container.persistentStoreDescriptions.first {
+                description.url = URL(fileURLWithPath: "/dev/null")
+            }
         }
 
         // Configure the store for CloudKit private database sync.

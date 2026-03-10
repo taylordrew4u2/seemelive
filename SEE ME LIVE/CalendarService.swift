@@ -13,7 +13,8 @@ import UIKit
 /// Stores the EKEvent identifier back in the Core Data `Show` so it can
 /// be updated or removed later.
 
-final class CalendarService: @unchecked Sendable {
+@MainActor
+final class CalendarService {
     static let shared = CalendarService()
 
     private let store = EKEventStore()
@@ -23,7 +24,7 @@ final class CalendarService: @unchecked Sendable {
     // MARK: - Authorization
 
     /// Current authorization status for full-access calendar.
-    var isAuthorized: Bool {
+    nonisolated var isAuthorized: Bool {
         EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
 
@@ -62,7 +63,7 @@ final class CalendarService: @unchecked Sendable {
         event.title = title
         event.location = show.venue
         event.startDate = show.date ?? Date()
-        event.endDate = Calendar.current.date(byAdding: .hour, value: 2, to: event.startDate)!
+        event.endDate = Calendar.current.date(byAdding: .hour, value: 2, to: event.startDate) ?? event.startDate
 
         if let link = show.ticketLink, let url = URL(string: link) {
             event.url = url

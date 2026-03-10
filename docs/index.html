@@ -408,10 +408,9 @@
         const buttonsContainer = document.getElementById('calendarButtons');
         section.style.display = 'block';
 
-        // Generate calendar feed URL
-        const baseURL = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
-        const calendarFeedURL = baseURL + '/calendar.ics?user=' + encodeURIComponent(userID);
-        const webcalURL = 'webcal://' + calendarFeedURL.substring(8); // Replace https:// with webcal://
+        // Calendar feed lives at /calendar.ics on the Vercel deployment
+        const calendarFeedURL = 'https://seemelive.vercel.app/calendar.ics?user=' + encodeURIComponent(userID);
+        const webcalURL = 'webcal://seemelive.vercel.app/calendar.ics?user=' + encodeURIComponent(userID);
 
         // Apple Calendar button
         const appleBtn = document.createElement('a');

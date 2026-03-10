@@ -8,104 +8,95 @@
 import SwiftUI
 
 // MARK: - Splash Screen View
-/// Beautiful launch animation that plays when app starts.
+/// Elegant launch animation that plays when app starts.
 
 struct SplashScreenView: View {
-    @State private var isAnimating = false
-    @State private var showContent = false
+    @State private var iconScale: CGFloat = 0.6
+    @State private var iconOpacity: Double = 0
+    @State private var titleOffset: CGFloat = 20
+    @State private var titleOpacity: Double = 0
+    @State private var subtitleOpacity: Double = 0
+    @State private var pulseScale: CGFloat = 1.0
 
     var body: some View {
         ZStack {
-            // Gradient background
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color.accentColor.opacity(0.1),
-                    Color.accentColor.opacity(0.05)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            Color("AppBackground")
+                .ignoresSafeArea()
 
-            VStack(spacing: 30) {
+            VStack(spacing: 0) {
                 Spacer()
 
-                // Animated logo/icon
+                // ── App Icon ──
                 ZStack {
-                    // Background pulse
+                    // Soft glow behind icon
                     Circle()
-                        .fill(Color.accentColor.opacity(0.2))
+                        .fill(Color.accentColor.opacity(0.08))
                         .frame(width: 160, height: 160)
-                        .scaleEffect(isAnimating ? 1.2 : 0.8)
-                        .opacity(isAnimating ? 0 : 1)
+                        .scaleEffect(pulseScale)
 
-                    // Main icon
-                    Image(systemName: "music.mic.circle.fill")
-                        .font(.system(size: 80))
-                        .foregroundStyle(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.accentColor,
-                                    Color.accentColor.opacity(0.7)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                    // Icon container
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.accentColor, Color.accentColor.opacity(0.85)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
-                        .scaleEffect(isAnimating ? 1 : 0.5)
-                        .opacity(isAnimating ? 1 : 0)
-                }
-                .frame(height: 140)
+                            .frame(width: 110, height: 110)
+                            .shadow(color: Color.accentColor.opacity(0.3), radius: 20, y: 10)
 
-                // App name with animation
-                VStack(spacing: 10) {
+                        Image(systemName: "music.mic")
+                            .font(.system(size: 44, weight: .light))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .scaleEffect(iconScale)
+                .opacity(iconOpacity)
+
+                Spacer().frame(height: 32)
+
+                // ── Title ──
+                VStack(spacing: 8) {
                     Text("SEE ME LIVE")
-                        .font(.system(size: 42, weight: .bold, design: .default))
-                        .foregroundStyle(Color.primary)
-                        .scaleEffect(isAnimating ? 1 : 0.8)
-                        .opacity(isAnimating ? 1 : 0)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .tracking(1.5)
 
                     Text("Your Performance Calendar")
-                        .font(.body)
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.secondary)
-                        .scaleEffect(isAnimating ? 1 : 0.8)
-                        .opacity(isAnimating ? 1 : 0)
+                        .opacity(subtitleOpacity)
                 }
-                .multilineTextAlignment(.center)
+                .offset(y: titleOffset)
+                .opacity(titleOpacity)
 
                 Spacer()
-
-                // Loading indicator
-                if !showContent {
-                    HStack(spacing: 6) {
-                        ForEach(0..<3, id: \.self) { index in
-                            Circle()
-                                .fill(Color.accentColor)
-                                .frame(width: 8, height: 8)
-                                .scaleEffect(isAnimating && index < 2 ? 1.2 : 0.8)
-                                .animation(
-                                    Animation.easeInOut(duration: 0.6)
-                                        .repeatForever(autoreverses: true)
-                                        .delay(Double(index) * 0.15),
-                                    value: isAnimating
-                                )
-                        }
-                    }
-                    .padding(.bottom, 60)
-                }
+                Spacer()
             }
-            .padding(.horizontal, 40)
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.8)) {
-                isAnimating = true
+            // Phase 1: Icon appears with spring
+            withAnimation(.spring(response: 0.7, dampingFraction: 0.65).delay(0.1)) {
+                iconScale = 1.0
+                iconOpacity = 1.0
             }
 
-            // Show main content after animation completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                withAnimation(.easeIn(duration: 0.5)) {
-                    showContent = true
-                }
+            // Phase 2: Title slides up
+            withAnimation(.easeOut(duration: 0.5).delay(0.4)) {
+                titleOffset = 0
+                titleOpacity = 1.0
+            }
+
+            // Phase 3: Subtitle fades in
+            withAnimation(.easeOut(duration: 0.4).delay(0.7)) {
+                subtitleOpacity = 1.0
+            }
+
+            // Phase 4: Subtle pulse
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true).delay(1.0)) {
+                pulseScale = 1.15
             }
         }
     }

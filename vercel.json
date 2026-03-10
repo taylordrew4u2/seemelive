@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "seemelive",
+  "buildCommand": null,
+  "outputDirectory": "docs",
+  "routes": [
+    {
+      "src": "/calendar.ics",
+      "dest": "/calendar.ics.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+}

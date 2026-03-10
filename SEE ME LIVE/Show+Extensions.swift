@@ -47,10 +47,18 @@ extension Show {
         return ""
     }
 
+    /// Returns a fully-qualified ticket URL, prepending https:// if no scheme is present.
+    var normalizedTicketURL: URL? {
+        guard let link = ticketLink, !link.isEmpty else { return nil }
+        let trimmed = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("http://") || trimmed.lowercased().hasPrefix("https://") {
+            return URL(string: trimmed)
+        }
+        return URL(string: "https://" + trimmed)
+    }
+
     /// True if the show has a valid ticket link
     var hasTicketLink: Bool {
-        guard let link = ticketLink, !link.isEmpty,
-              URL(string: link) != nil else { return false }
-        return true
+        return normalizedTicketURL != nil
     }
 }

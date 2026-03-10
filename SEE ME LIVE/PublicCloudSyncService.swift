@@ -20,7 +20,7 @@ import UIKit
 /// `flushQueue(using:)` is called (e.g. on app launch or when the scene
 /// becomes active).
 
-final class PublicCloudSyncService: @unchecked Sendable {
+final class PublicCloudSyncService: Sendable {
     static let shared = PublicCloudSyncService()
 
     private let publicDB = CKContainer.default().publicCloudDatabase
@@ -32,33 +32,63 @@ final class PublicCloudSyncService: @unchecked Sendable {
 
     /// Saves or updates a PublicShow record for the given Core Data Show.
     func saveOrUpdate(show: Show, in context: NSManagedObjectContext) async {
+        let objectID = show.objectID
+
+        // Snapshot all Show properties inside context.perform to avoid
+        // unsafeForcedSync from an async context.
+        struct ShowSnapshot {
+            let title: String
+            let role: String
+            let venue: String
+            let date: Date
+            let price: Double
+            let ticketLink: String
+            let notes: String
+            let userID: String
+            let flyerImageData: Data?
+            let publicRecordID: String?
+        }
+
+        guard let snapshot: ShowSnapshot = await context.perform({
+            guard let s = try? context.existingObject(with: objectID) as? Show else { return nil }
+            return ShowSnapshot(
+                title: s.title ?? "",
+                role: s.role ?? "",
+                venue: s.venue ?? "",
+                date: s.date ?? Date(),
+                price: s.price,
+                ticketLink: s.ticketLink ?? "",
+                notes: s.notes ?? "",
+                userID: s.userID ?? "",
+                flyerImageData: s.flyerImageData,
+                publicRecordID: s.publicRecordID
+            )
+        }) else { return }
+
         let record: CKRecord
 
-        if let existingID = show.publicRecordID {
-            // Update existing record.
+        if let existingID = snapshot.publicRecordID {
             let ckRecordID = CKRecord.ID(recordName: existingID)
             do {
                 record = try await publicDB.record(for: ckRecordID)
             } catch {
-                // Record may have been deleted server-side; create a new one.
                 record = CKRecord(recordType: recordType)
             }
         } else {
             record = CKRecord(recordType: recordType)
         }
 
-        // Populate fields.
-        record["title"]      = (show.title ?? "") as CKRecordValue
-        record["role"]       = (show.role ?? "") as CKRecordValue
-        record["venue"]      = (show.venue ?? "") as CKRecordValue
-        record["date"]       = (show.date ?? Date()) as CKRecordValue
-        record["price"]      = NSNumber(value: show.price)
-        record["ticketLink"] = (show.ticketLink ?? "") as CKRecordValue
-        record["notes"]      = (show.notes ?? "") as CKRecordValue
-        record["userID"]     = (show.userID ?? "") as CKRecordValue
+        // Populate fields from snapshot (no managed-object access).
+        record["title"]      = snapshot.title as CKRecordValue
+        record["role"]       = snapshot.role as CKRecordValue
+        record["venue"]      = snapshot.venue as CKRecordValue
+        record["date"]       = snapshot.date as CKRecordValue
+        record["price"]      = NSNumber(value: snapshot.price)
+        record["ticketLink"] = snapshot.ticketLink as CKRecordValue
+        record["notes"]      = snapshot.notes as CKRecordValue
+        record["userID"]     = snapshot.userID as CKRecordValue
 
-        // Flyer image → CKAsset (write to temp file).
-        if let imageData = show.flyerImageData {
+        if let imageData = snapshot.flyerImageData {
             let tempURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString + ".jpg")
             try? imageData.write(to: tempURL)
@@ -69,22 +99,23 @@ final class PublicCloudSyncService: @unchecked Sendable {
 
         do {
             let saved = try await publicDB.save(record)
-            // Store the public record ID back in Core Data.
             let recordName = saved.recordID.recordName
-            nonisolated(unsafe) let showObj = show
-            await MainActor.run {
-                showObj.publicRecordID = recordName
-                showObj.needsPublicSync = false
-                showObj.lastPublicSyncError = nil
-                PersistenceController.shared.save(context: context)
+            await context.perform {
+                if let showInContext = try? context.existingObject(with: objectID) as? Show {
+                    showInContext.publicRecordID = recordName
+                    showInContext.needsPublicSync = false
+                    showInContext.lastPublicSyncError = nil
+                    PersistenceController.shared.save(context: context)
+                }
             }
         } catch {
             let errorDescription = error.localizedDescription
-            nonisolated(unsafe) let showObj = show
-            await MainActor.run {
-                showObj.needsPublicSync = true
-                showObj.lastPublicSyncError = errorDescription
-                PersistenceController.shared.save(context: context)
+            await context.perform {
+                if let showInContext = try? context.existingObject(with: objectID) as? Show {
+                    showInContext.needsPublicSync = true
+                    showInContext.lastPublicSyncError = errorDescription
+                    PersistenceController.shared.save(context: context)
+                }
             }
             print("⚠️ Public CloudKit save failed: \(error)")
         }
@@ -93,10 +124,9 @@ final class PublicCloudSyncService: @unchecked Sendable {
     // MARK: - Delete
 
     /// Marks a show for public deletion. Call before removing from Core Data.
+    @MainActor
     func markForDelete(show: Show) {
         guard let recordID = show.publicRecordID else { return }
-        // Store in a lightweight queue (UserDefaults) because the CD object
-        // is about to be deleted.
         var queue = pendingDeleteIDs
         queue.append(recordID)
         pendingDeleteIDs = queue
@@ -112,11 +142,20 @@ final class PublicCloudSyncService: @unchecked Sendable {
 
     /// Flushes any pending saves or deletes that failed while offline.
     func flushQueue(using context: NSManagedObjectContext) async {
-        // 1. Retry pending saves.
-        let fetchRequest: NSFetchRequest<Show> = Show.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "needsPublicSync == YES")
-        if let pending = try? context.fetch(fetchRequest) {
-            for show in pending {
+        // 1. Retry pending saves — fetch objectIDs inside context.perform
+        //    to avoid accessing managed objects outside their queue.
+        let pendingIDs: [NSManagedObjectID] = await context.perform {
+            let fetchRequest: NSFetchRequest<Show> = Show.fetchRequest()
+            fetchRequest.predicate = NSPredicate(format: "needsPublicSync == YES")
+            let results = (try? context.fetch(fetchRequest)) ?? []
+            return results.map { $0.objectID }
+        }
+        for objectID in pendingIDs {
+            // Re-fetch each show inside saveOrUpdate via context.perform
+            let show: Show? = await context.perform {
+                try? context.existingObject(with: objectID) as? Show
+            }
+            if let show {
                 await saveOrUpdate(show: show, in: context)
             }
         }

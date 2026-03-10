@@ -25,7 +25,6 @@ struct ContentView: View {
 
     @State private var isPresentingEditor = false
     @State private var showToEdit: Show?
-    @State private var showShareSheet = false
     @State private var isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
     @State private var fabScale: CGFloat = 1.0
     @State private var toastMessage: String?
@@ -69,27 +68,14 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("My Gigs")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showShareSheet = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .fontWeight(.semibold)
-                    }
-                    .accessibilityLabel("Share My Gigs")
-                }
-            }
             .sheet(isPresented: $isPresentingEditor, onDismiss: {
                 if showToEdit != nil || !upcomingShows.isEmpty {
                     showToastBriefly("Gig saved! 🎉")
                 }
+                showToEdit = nil
             }) {
                 ShowEditorView(showToEdit: showToEdit)
                     .environment(\.managedObjectContext, viewContext)
-            }
-            .sheet(isPresented: $showShareSheet) {
-                ShareLinkSheetView(userID: userID)
             }
             .task {
                 await PublicCloudSyncService.shared.flushQueue(using: viewContext)
@@ -103,28 +89,25 @@ struct ContentView: View {
     // MARK: - Empty State
 
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             Spacer()
 
-            // Stage illustration using SF Symbols
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.1))
-                    .frame(width: 140, height: 140)
-                Image(systemName: "music.mic.circle.fill")
-                    .font(.system(size: 72))
-                    .foregroundStyle(Color.accentColor)
-                    .symbolEffect(.pulse, options: .repeating)
+                    .fill(Color.accentColor.opacity(0.08))
+                    .frame(width: 100, height: 100)
+                Image(systemName: "music.mic")
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundStyle(Color.accentColor.opacity(0.7))
             }
 
-            Text("No gigs yet")
-                .font(.title.bold())
+            Text("No Upcoming Events")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(.primary)
 
-            Text("Tap the + button to add your first show.")
-                .font(.body)
+            Text("Tap + to add your first show")
+                .font(.system(size: 16))
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
 
             Spacer()
             Spacer()
@@ -135,7 +118,7 @@ struct ContentView: View {
 
     private var showListView: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: 0) {
                 ForEach(upcomingShows) { show in
                     NavigationLink {
                         ShowDetailView(show: show) {
@@ -145,9 +128,17 @@ struct ContentView: View {
                     } label: {
                         ShowCardView(show: show)
                     }
-                    .buttonStyle(CardButtonStyle())
+                    .buttonStyle(.plain)
+                    
+                    if show != upcomingShows.last {
+                        Divider()
+                            .padding(.leading, 76)
+                    }
                 }
             }
+            .background(Color("CardBackground"))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 100) // space for FAB
@@ -167,23 +158,16 @@ struct ContentView: View {
             isPresentingEditor = true
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 60, height: 60)
+                .frame(width: 58, height: 58)
                 .background(
                     Circle()
                         .fill(Color.accentColor)
-                        .shadow(color: Color.accentColor.opacity(0.4), radius: 8, y: 4)
+                        .shadow(color: Color.accentColor.opacity(0.4), radius: 16, x: 0, y: 8)
                 )
         }
         .scaleEffect(fabScale)
-        .onAppear {
-            if isFirstLaunch {
-                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                    fabScale = 1.12
-                }
-            }
-        }
         .accessibilityLabel("Add Show")
     }
 
@@ -191,14 +175,14 @@ struct ContentView: View {
 
     private func toastView(message: String) -> some View {
         Text(message)
-            .font(.subheadline.weight(.semibold))
+            .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background(
                 Capsule()
-                    .fill(Color.green)
-                    .shadow(radius: 4)
+                    .fill(.black.opacity(0.8))
+                    .shadow(color: .black.opacity(0.2), radius: 12, y: 5)
             )
     }
 
@@ -233,107 +217,75 @@ struct ContentView: View {
 
 // MARK: - Show Card View
 
-private struct ShowCardView: View {
+struct ShowCardView: View {
     @ObservedObject var show: Show
 
     var body: some View {
-        HStack(spacing: 14) {
-            // Flyer Thumbnail
-            FlyerThumbnailView(data: show.flyerImageData)
-
-            // Info
+        HStack(spacing: 12) {
+            // Date badge
+            VStack(spacing: 2) {
+                Text(show.date?.formatted(.dateTime.month(.abbreviated)) ?? "")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+                    .textCase(.uppercase)
+                
+                Text(show.date?.formatted(.dateTime.day()) ?? "")
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+            }
+            .frame(width: 52, height: 52)
+            .background(Color.accentColor.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            
+            // Event details
             VStack(alignment: .leading, spacing: 4) {
+                Text(show.dateFormatted)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                
                 Text(show.titleOrEmpty)
-                    .font(.headline)
+                    .font(.system(size: 17))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-
+                
                 if !show.venueOrEmpty.isEmpty {
                     HStack(spacing: 4) {
-                        Image(systemName: "mappin")
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
                         Text(show.venueOrEmpty)
-                            .font(.subheadline)
+                            .font(.system(size: 14))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                 }
-
-                Text(show.dateFormatted)
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor.opacity(0.85))
-                    .fontWeight(.medium)
-
-                if !show.relativeDateLabel.isEmpty {
-                    Text(show.relativeDateLabel)
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(Color.accentColor.opacity(0.8))
-                        )
-                }
             }
-
+            
             Spacer(minLength: 0)
-
-            // Right indicators
-            VStack(spacing: 6) {
-                if show.hasTicketLink {
-                    Image(systemName: "ticket.fill")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                }
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
+            
+            // Chevron
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.quaternary)
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color("CardBackground"))
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Border Modifier
+
+extension View {
+    func borderBottom(_ color: Color, width: CGFloat) -> some View {
+        self.overlay(
+            VStack {
+                Spacer()
+                Rectangle()
+                    .fill(color)
+                    .frame(height: width)
+            }
         )
-    }
-}
-
-// MARK: - Card Button Style (subtle scale on press)
-
-private struct CardButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
-    }
-}
-
-// MARK: - Flyer Thumbnail
-
-private struct FlyerThumbnailView: View {
-    let data: Data?
-
-    var body: some View {
-        Group {
-            if let data, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ZStack {
-                    Color.accentColor.opacity(0.1)
-                    Image(systemName: "music.note")
-                        .font(.title3)
-                        .foregroundStyle(Color.accentColor.opacity(0.5))
-                }
-            }
-        }
-        .frame(width: 60, height: 60)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
