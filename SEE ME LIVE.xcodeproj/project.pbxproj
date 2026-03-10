@@ -10,22 +10,9 @@
 		BAE42E362F574DF70064DCBD /* SEE ME LIVE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "SEE ME LIVE.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		BAE42E502F574DF90064DCBD /* Exceptions for "SEE ME LIVE" folder in "SEE ME LIVE" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = BAE42E352F574DF70064DCBD /* SEE ME LIVE */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BAE42E382F574DF70064DCBD /* SEE ME LIVE */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				BAE42E502F574DF90064DCBD /* Exceptions for "SEE ME LIVE" folder in "SEE ME LIVE" target */,
-			);
 			path = "SEE ME LIVE";
 			sourceTree = "<group>";
 		};

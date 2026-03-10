@@ -148,6 +148,24 @@ enum FontStyle: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Date Format Style
+
+enum DateFormatStyle: String, CaseIterable, Identifiable {
+    case short    = "Short"      // Mar 15 · 8 PM
+    case full     = "Full"       // Saturday, March 15
+    case relative = "Relative"   // In 3 days
+    case timeOnly = "Time Only"  // 8:00 PM
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .short:    return "calendar"
+        case .full:     return "calendar.day.timeline.left"
+        case .relative: return "clock.arrow.circlepath"
+        case .timeOnly: return "clock"
+        }
+    }
+}
+
 // MARK: - Export Options
 
 struct ExportOptions {
@@ -167,6 +185,19 @@ struct ExportOptions {
     var cardOpacity:     Double           = 1.0      // 0…1
     var headerStyle:     HeaderStyle      = .left
     var fontStyle:       FontStyle        = .system
+
+    // Customizable text
+    var subtitleText:    String           = "Upcoming Schedule"
+    var badgeText:       String           = "SEE ME LIVE"
+
+    // Date formatting
+    var dateFormatStyle: DateFormatStyle  = .short
+
+    // Scrim (background overlay darkness)
+    var scrimIntensity:  Double           = 0.55     // 0…1
+
+    // Grid gap multiplier
+    var gridGap:         Double           = 1.0      // 0.5…2.0
 
     var customBackground: CustomBackground = CustomBackground()
     var textOverlays: [TextOverlay] = []
@@ -212,6 +243,30 @@ struct ShowSnapshot: Sendable {
 
     var timeString: String {
         let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
+    }
+
+    func formattedDate(style: DateFormatStyle) -> String {
+        switch style {
+        case .short:
+            let df = DateFormatter(); df.dateFormat = "MMM d"
+            let tf = DateFormatter(); tf.dateFormat = "h:mm a"
+            return "\(df.string(from: date)) · \(tf.string(from: date))"
+        case .full:
+            let df = DateFormatter(); df.dateFormat = "EEEE, MMMM d"
+            return df.string(from: date)
+        case .relative:
+            let cal = Calendar.current
+            let now = Date()
+            if cal.isDateInToday(date) { return "Today" }
+            if cal.isDateInTomorrow(date) { return "Tomorrow" }
+            let days = cal.dateComponents([.day], from: now, to: date).day ?? 0
+            if days > 0 { return "In \(days) day\(days == 1 ? "" : "s")" }
+            if days < 0 { return "\(abs(days)) day\(abs(days) == 1 ? "" : "s") ago" }
+            return "Today"
+        case .timeOnly:
+            let tf = DateFormatter(); tf.dateFormat = "h:mm a"
+            return tf.string(from: date)
+        }
     }
 
     var hasTicketLink: Bool {
@@ -296,7 +351,7 @@ enum ShareImageGenerator {
                        style: options.backgroundStyle, customBG: options.customBackground)
 
         // 2. Scrim overlay for readability
-        let scrimAlpha: CGFloat = isLight ? 0.05 : 0.55
+        let scrimAlpha: CGFloat = isLight ? options.scrimIntensity * 0.1 : options.scrimIntensity
         ctx.setFillColor(UIColor.black.withAlphaComponent(scrimAlpha).cgColor)
         ctx.fill(rect)
 
@@ -354,7 +409,8 @@ enum ShareImageGenerator {
 
         // 7. Bottom bar
         if options.showBottomBar {
-            drawBottomBar(ctx: ctx, size: size, barH: bottomH, accent: accent)
+            drawBottomBar(ctx: ctx, size: size, barH: bottomH, accent: accent,
+                          badgeText: options.badgeText)
         }
 
         // 8. Custom text overlays
@@ -383,15 +439,17 @@ enum ShareImageGenerator {
             // "SEE ME LIVE" pill badge — top right
             if options.showBadge {
                 drawBadgePill(ctx: ctx, size: size, pad: pad, topY: topY + nameSz * 0.15,
-                              accent: accent, fontSt: fontSt)
+                              accent: accent, fontSt: fontSt, text: options.badgeText)
             }
 
             // Subtitle line
             let subY = topY + nameSz * 1.35
             let subSz = size.width * 0.026
             let subFont = resolvedFont(size: subSz, weight: .medium, style: fontSt)
-            drawText("Upcoming Schedule", at: CGPoint(x: pad, y: subY), font: subFont,
-                     color: subColor, maxWidth: size.width * 0.5, canvasHeight: size.height)
+            if !options.subtitleText.isEmpty {
+                drawText(options.subtitleText, at: CGPoint(x: pad, y: subY), font: subFont,
+                         color: subColor, maxWidth: size.width * 0.5, canvasHeight: size.height)
+            }
 
             // Thin divider line
             let divY = subY + subSz * 2
@@ -407,7 +465,7 @@ enum ShareImageGenerator {
             if options.showBadge {
                 let badgeSz = size.width * 0.02
                 let badgeFont = resolvedFont(size: badgeSz, weight: .heavy, style: fontSt)
-                let badgeText = "SEE ME LIVE" as NSString
+                let badgeText = options.badgeText as NSString
                 let badgeAttrs: [NSAttributedString.Key: Any] = [.font: badgeFont, .foregroundColor: accent]
                 let badgeTextSize = badgeText.size(withAttributes: badgeAttrs)
                 let bx = (size.width - badgeTextSize.width) / 2
@@ -430,7 +488,7 @@ enum ShareImageGenerator {
             let subSz = size.width * 0.024
             let subFont = resolvedFont(size: subSz, weight: .medium, style: fontSt)
             let subAttrs: [NSAttributedString.Key: Any] = [.font: subFont, .foregroundColor: subColor]
-            let subText = "Upcoming Schedule" as NSString
+            let subText = options.subtitleText as NSString
             let subSize = subText.size(withAttributes: subAttrs)
             let sx = (size.width - subSize.width) / 2
             UIGraphicsPushContext(ctx)
@@ -455,17 +513,18 @@ enum ShareImageGenerator {
 
             if options.showBadge {
                 drawBadgePill(ctx: ctx, size: size, pad: pad, topY: topY,
-                              accent: accent, fontSt: fontSt)
+                              accent: accent, fontSt: fontSt, text: options.badgeText)
             }
         }
     }
 
-    /// Draws the "SEE ME LIVE" pill badge at top-right
+    /// Draws a pill badge at top-right
     private static func drawBadgePill(ctx: CGContext, size: CGSize, pad: CGFloat,
-                                       topY: CGFloat, accent: UIColor, fontSt: FontStyle) {
+                                       topY: CGFloat, accent: UIColor, fontSt: FontStyle,
+                                       text: String = "SEE ME LIVE") {
         let badgeSz = size.width * 0.02
         let badgeFont = resolvedFont(size: badgeSz, weight: .heavy, style: fontSt)
-        let badgeText = "SEE ME LIVE" as NSString
+        let badgeText = text as NSString
         let badgeAttrs: [NSAttributedString.Key: Any] = [.font: badgeFont, .foregroundColor: UIColor.white]
         let badgeTextSize = badgeText.size(withAttributes: badgeAttrs)
         let pillW = badgeTextSize.width + badgeSz * 3
@@ -506,7 +565,7 @@ enum ShareImageGenerator {
         }
 
         let count = allShows.count
-        let gap = gridSize.width * 0.025
+        let gap = gridSize.width * 0.025 * options.gridGap
         let rows = Int(ceil(Double(count) / Double(cols)))
 
         let cardW = (gridSize.width - gap * CGFloat(cols - 1)) / CGFloat(cols)
@@ -638,10 +697,10 @@ enum ShareImageGenerator {
                 curY += venueSz * 1.6
             }
 
-            // Time
+            // Time / Date
             if options.showDate {
                 let timeFont = resolvedFont(size: timeSz, weight: .regular, style: fontSt)
-                drawText("🕐 " + show.timeString,
+                drawText("🕐 " + show.formattedDate(style: options.dateFormatStyle),
                          at: CGPoint(x: contentX, y: curY),
                          font: timeFont, color: subColor,
                          maxWidth: contentW, canvasHeight: cardRect.maxY - inset)
@@ -707,14 +766,15 @@ enum ShareImageGenerator {
 
     // MARK: - Bottom Bar
 
-    private static func drawBottomBar(ctx: CGContext, size: CGSize, barH: CGFloat, accent: UIColor) {
+    private static func drawBottomBar(ctx: CGContext, size: CGSize, barH: CGFloat,
+                                      accent: UIColor, badgeText: String = "SEE ME LIVE") {
         let barRect = CGRect(x: 0, y: size.height - barH, width: size.width, height: barH)
         ctx.setFillColor(UIColor.black.withAlphaComponent(0.4).cgColor)
         ctx.fill(barRect)
 
         let fontSize = size.width * 0.02
         let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
-        let text = "SEE ME LIVE  ·  seemelive.app"
+        let text = "\(badgeText)  ·  seemelive.app"
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: accent.withAlphaComponent(0.9)

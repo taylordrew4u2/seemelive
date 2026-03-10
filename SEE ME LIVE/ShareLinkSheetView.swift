@@ -40,6 +40,13 @@ struct ShareLinkSheetView: View {
         return String(format: "#%02X%02X%02X", Int(r*255), Int(g*255), Int(b*255))
     }
 
+    // Accent color presets
+    private static let accentPresets: [String] = [
+        "#CC7057", "#FF3B30", "#FF9500", "#FFCC00", "#34C759",
+        "#00C7BE", "#007AFF", "#5856D6", "#AF52DE", "#FF2D55",
+        "#A2845E", "#FFFFFF", "#8E8E93"
+    ]
+
     // MARK: Body
     var body: some View {
         NavigationStack {
@@ -187,14 +194,67 @@ struct ShareLinkSheetView: View {
 
                     // ── ACCENT COLOR ──────────────────────────────────
                     sectionCard(title: "Accent Color", icon: "circle.fill") {
-                        HStack(spacing: 12) {
-                            ColorPicker("", selection: $accentColor, supportsOpacity: false)
-                                .labelsHidden()
-                                .frame(width: 44, height: 44)
-                            Text("Color used for name, badge and bar text")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
+                        VStack(spacing: 12) {
+                            // Preset color swatches
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(Self.accentPresets, id: \.self) { hex in
+                                        Button {
+                                            if let c = Color(hex: hex) { accentColor = c }
+                                        } label: {
+                                            Circle()
+                                                .fill(Color(hex: hex) ?? .gray)
+                                                .frame(width: 32, height: 32)
+                                                .overlay(
+                                                    Circle().stroke(.white.opacity(0.3), lineWidth: 0.5)
+                                                )
+                                                .overlay(
+                                                    accentHex.uppercased() == hex.uppercased()
+                                                        ? Circle().stroke(Color.primary, lineWidth: 2.5)
+                                                            .frame(width: 38, height: 38) : nil
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+
+                            HStack(spacing: 12) {
+                                ColorPicker("", selection: $accentColor, supportsOpacity: false)
+                                    .labelsHidden()
+                                    .frame(width: 36, height: 36)
+                                Text("Custom color")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                        }
+                    }
+
+                    // ── CUSTOM TEXT ───────────────────────────────────
+                    sectionCard(title: "Custom Text", icon: "character.cursor.ibeam") {
+                        VStack(spacing: 10) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "tag.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 20)
+                                TextField("Badge text", text: $options.badgeText)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 14))
+                                    .submitLabel(.done)
+                            }
+
+                            HStack(spacing: 8) {
+                                Image(systemName: "text.below.photo")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 20)
+                                TextField("Subtitle text", text: $options.subtitleText)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 14))
+                                    .submitLabel(.done)
+                            }
                         }
                     }
 
@@ -240,6 +300,66 @@ struct ShareLinkSheetView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 }
                                 .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // ── DATE FORMAT ───────────────────────────────────
+                    sectionCard(title: "Date Format", icon: "calendar.badge.clock") {
+                        HStack(spacing: 6) {
+                            ForEach(DateFormatStyle.allCases) { style in
+                                let selected = options.dateFormatStyle == style
+                                Button { options.dateFormatStyle = style } label: {
+                                    VStack(spacing: 3) {
+                                        Image(systemName: style.icon)
+                                            .font(.system(size: 13))
+                                        Text(style.rawValue)
+                                            .font(.system(size: 9, weight: .semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                                    .foregroundStyle(selected ? .white : .primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // ── SCRIM & SPACING ──────────────────────────────
+                    sectionCard(title: "Fine Tuning", icon: "slider.horizontal.3") {
+                        VStack(spacing: 14) {
+                            // Scrim intensity
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Overlay Darkness")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text("\(Int(options.scrimIntensity * 100))%")
+                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Slider(value: $options.scrimIntensity, in: 0...1.0, step: 0.05)
+                                    .tint(Color.accentColor)
+                            }
+
+                            Divider()
+
+                            // Grid gap
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Card Spacing")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text(options.gridGap < 0.3 ? "None" : options.gridGap > 1.5 ? "Wide" : "Normal")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Slider(value: $options.gridGap, in: 0...2.0, step: 0.1)
+                                    .tint(Color.accentColor)
                             }
                         }
                     }
@@ -344,12 +464,6 @@ struct ShareLinkSheetView: View {
                                     .font(.subheadline)
                             }
                             .tint(Color.accentColor)
-                            Divider().padding(.vertical, 6)
-                            Toggle(isOn: $options.showBottomBar) {
-                                Label("Bottom Bar", systemImage: "rectangle.bottomhalf.filled")
-                                    .font(.subheadline)
-                            }
-                            .tint(Color.accentColor)
                         }
                     }
 
@@ -436,7 +550,6 @@ struct ShareLinkSheetView: View {
         .onChange(of: options.showDate)        { regenerateImage() }
         .onChange(of: options.showVenue)       { regenerateImage() }
         .onChange(of: options.showBadge)       { regenerateImage() }
-        .onChange(of: options.showBottomBar)   { regenerateImage() }
         .onChange(of: options.showPrice)       { regenerateImage() }
         .onChange(of: options.showNotes)       { regenerateImage() }
         .onChange(of: options.showTickets)     { regenerateImage() }
@@ -445,6 +558,11 @@ struct ShareLinkSheetView: View {
         .onChange(of: options.cardOpacity)     { regenerateImage() }
         .onChange(of: options.headerStyle)     { regenerateImage() }
         .onChange(of: options.fontStyle)       { regenerateImage() }
+        .onChange(of: options.badgeText)       { regenerateImage() }
+        .onChange(of: options.subtitleText)    { regenerateImage() }
+        .onChange(of: options.dateFormatStyle) { regenerateImage() }
+        .onChange(of: options.scrimIntensity)  { regenerateImage() }
+        .onChange(of: options.gridGap)         { regenerateImage() }
         .onChange(of: accentColor)             { regenerateImage() }
     }
 
