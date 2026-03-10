@@ -102,7 +102,6 @@ struct ExportOptions {
     var sizePreset:      SocialSizePreset = .instagramPost
     var backgroundStyle: BackgroundStyle  = .gradient
     var accentHex:       String           = "#CC7057"
-    var showCount:       Int              = 4
     var showVenue:       Bool             = true
     var showDate:        Bool             = true
     var showBadge:       Bool             = true
@@ -266,14 +265,13 @@ enum ShareImageGenerator {
     private static func drawHeader(ctx: CGContext, size: CGSize, pad: CGFloat,
                                     performerName: String, options: ExportOptions,
                                     accent: UIColor, textColor: UIColor, subColor: UIColor) {
-        var x = pad
         let topY = pad
 
         // Performer name — large, left-aligned
         let nameSz = size.width * 0.065
         let nameFont = UIFont.systemFont(ofSize: nameSz, weight: .bold)
         let name = performerName.isEmpty ? "My Shows" : performerName
-        drawText(name, at: CGPoint(x: x, y: topY), font: nameFont,
+        drawText(name, at: CGPoint(x: pad, y: topY), font: nameFont,
                  color: textColor, maxWidth: size.width * 0.6, canvasHeight: size.height)
 
         // "SEE ME LIVE" pill badge — top right
@@ -308,7 +306,7 @@ enum ShareImageGenerator {
         let subSz = size.width * 0.026
         let subFont = UIFont.systemFont(ofSize: subSz, weight: .medium)
         let subStr = "Upcoming Schedule"
-        drawText(subStr, at: CGPoint(x: x, y: subY), font: subFont,
+        drawText(subStr, at: CGPoint(x: pad, y: subY), font: subFont,
                  color: subColor, maxWidth: size.width * 0.5, canvasHeight: size.height)
 
         // Thin divider line
@@ -423,13 +421,7 @@ enum ShareImageGenerator {
             let titleW = contentW - (dateBadgeR * 2 + inset * 0.6)
             let titleFont = UIFont.systemFont(ofSize: titleSz, weight: .semibold)
 
-            let titleStr: String
-            if !show.roleOrEmpty.isEmpty {
-                titleStr = show.titleOrEmpty
-            } else {
-                titleStr = show.titleOrEmpty
-            }
-            drawText(titleStr, at: CGPoint(x: titleX, y: curY + dateBadgeR * 0.15),
+            drawText(show.titleOrEmpty, at: CGPoint(x: titleX, y: curY + dateBadgeR * 0.15),
                      font: titleFont, color: textColor,
                      maxWidth: max(1, titleW), canvasHeight: curY + dateBadgeR * 2)
 
