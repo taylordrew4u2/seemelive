@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 // MARK: - Share Image Sheet
 
@@ -29,6 +30,8 @@ struct ShareLinkSheetView: View {
     @State private var accentColor: Color     = Color(red: 204/255, green: 112/255, blue: 87/255)
     @State private var renderTask: Task<Void, Never>? = nil
     @State private var showEditor = false
+    @State private var bgPhotoItem: PhotosPickerItem?
+    @State private var bgPhotoThumb: UIImage?
 
     private var accentHex: String {
         let ui = UIColor(accentColor)
@@ -102,24 +105,82 @@ struct ShareLinkSheetView: View {
 
                     // ── BACKGROUND ────────────────────────────────────
                     sectionCard(title: "Background", icon: "paintpalette.fill") {
-                        HStack(spacing: 8) {
-                            ForEach(BackgroundStyle.allCases.filter { $0 != .custom }) { style in
-                                let selected = options.backgroundStyle == style
-                                Button { options.backgroundStyle = style } label: {
-                                    VStack(spacing: 4) {
-                                        Image(systemName: style.icon)
-                                            .font(.system(size: 16))
-                                        Text(style.rawValue)
-                                            .font(.system(size: 11, weight: .semibold))
+                        VStack(spacing: 12) {
+                            HStack(spacing: 8) {
+                                ForEach(BackgroundStyle.allCases.filter { $0 != .custom }) { style in
+                                    let selected = options.backgroundStyle == style
+                                    Button {
+                                        options.backgroundStyle = style
+                                    } label: {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: style.icon)
+                                                .font(.system(size: 16))
+                                            Text(style.rawValue)
+                                                .font(.system(size: 11, weight: .semibold))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 9)
+                                        .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                                        .foregroundStyle(selected ? .white : .primary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                     }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 9)
-                                    .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                                    .foregroundStyle(selected ? .white : .primary)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .buttonStyle(.plain)
+                                    .animation(.spring(response: 0.2), value: options.backgroundStyle)
+                                }
+                            }
+
+                            // Custom background image upload
+                            HStack(spacing: 12) {
+                                PhotosPicker(selection: $bgPhotoItem, matching: .images) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "photo.on.rectangle.angled")
+                                            .font(.system(size: 14))
+                                        Text(options.customBackground.photoData != nil ? "Change Image" : "Upload Background")
+                                            .font(.system(size: 13, weight: .semibold))
+                                    }
+                                    .foregroundStyle(options.backgroundStyle == .custom ? .white : .primary)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        options.backgroundStyle == .custom
+                                            ? AnyShapeStyle(Color.accentColor)
+                                            : AnyShapeStyle(Color.secondary.opacity(0.1)),
+                                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    )
                                 }
                                 .buttonStyle(.plain)
-                                .animation(.spring(response: 0.2), value: options.backgroundStyle)
+                                .onChange(of: bgPhotoItem) { _, newItem in
+                                    Task { await loadBackgroundPhoto(from: newItem) }
+                                }
+
+                                if let thumb = bgPhotoThumb {
+                                    Image(uiImage: thumb)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 40, height: 40)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                .stroke(Color.accentColor, lineWidth: 1.5)
+                                        )
+
+                                    Button {
+                                        options.customBackground.photoData = nil
+                                        bgPhotoThumb = nil
+                                        bgPhotoItem = nil
+                                        if options.backgroundStyle == .custom {
+                                            options.backgroundStyle = .gradient
+                                        }
+                                        regenerateImage()
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+
+                                Spacer()
                             }
                         }
                     }
@@ -267,6 +328,21 @@ struct ShareLinkSheetView: View {
             let img = ShareImageGenerator.generate(snapshots: snapshots, performerName: name, options: opts)
             guard !Task.isCancelled else { return }
             await MainActor.run { cachedImage = img }
+        }
+    }
+
+    private func loadBackgroundPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        if let data = try? await item.loadTransferable(type: Data.self) {
+            await MainActor.run {
+                options.customBackground.kind = .photo
+                options.customBackground.photoData = data
+                options.backgroundStyle = .custom
+                if let img = UIImage(data: data) {
+                    bgPhotoThumb = img
+                }
+                regenerateImage()
+            }
         }
     }
 

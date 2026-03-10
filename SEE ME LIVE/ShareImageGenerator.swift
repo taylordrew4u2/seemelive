@@ -87,13 +87,13 @@ struct CustomBackground {
 struct TextOverlay: Identifiable {
     let id = UUID()
     var text: String
-    var fontName: String = "System"       // "System" maps to SF Pro
-    var fontSize: CGFloat = 0.08          // fraction of canvas width
-    var fontWeight: String = "bold"       // "regular", "semibold", "bold", "heavy", "black"
+    var fontName: String = "System"
+    var fontSize: CGFloat = 0.08
+    var fontWeight: String = "bold"
     var colorHex: String = "#FFFFFF"
-    var positionX: CGFloat = 0.5          // 0…1 fraction of canvas width (centre)
-    var positionY: CGFloat = 0.10         // 0…1 fraction of canvas height (centre)
-    var rotation: Double = 0             // degrees
+    var positionX: CGFloat = 0.5
+    var positionY: CGFloat = 0.10
+    var rotation: Double = 0
 }
 
 // MARK: - Export Options
@@ -108,15 +108,12 @@ struct ExportOptions {
     var showBadge:       Bool             = true
     var showBottomBar:   Bool             = true
 
-    // Custom editor additions
     var customBackground: CustomBackground = CustomBackground()
     var textOverlays: [TextOverlay] = []
 }
 
 // MARK: - Show Snapshot (thread-safe)
 
-/// A Sendable value-type snapshot of a Show's display properties.
-/// Use this to pass show data to background rendering tasks safely.
 struct ShowSnapshot: Sendable {
     let title: String
     let role: String
@@ -145,6 +142,18 @@ struct ShowSnapshot: Sendable {
         return "\(dayFormatter.string(from: date)) · \(timeFormatter.string(from: date))"
     }
 
+    var monthAbbrev: String {
+        let f = DateFormatter(); f.dateFormat = "MMM"; return f.string(from: date).uppercased()
+    }
+
+    var dayNumber: String {
+        let f = DateFormatter(); f.dateFormat = "d"; return f.string(from: date)
+    }
+
+    var timeString: String {
+        let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
+    }
+
     var hasTicketLink: Bool {
         guard !ticketLink.isEmpty else { return false }
         let trimmed = ticketLink.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -154,7 +163,6 @@ struct ShowSnapshot: Sendable {
         return URL(string: "https://" + trimmed) != nil
     }
 
-    /// Create a snapshot from a Core Data Show (must be called on the Show's context queue).
     init(from show: Show) {
         self.title = show.title ?? ""
         self.role = show.role ?? ""
@@ -172,7 +180,6 @@ struct ShowSnapshot: Sendable {
 enum ShareImageGenerator {
 
     /// Generate from Core Data Show objects (snapshots them on the calling thread).
-    /// Call this from the main actor when Show objects are available.
     static func generate(shows: [Show], performerName: String, options: ExportOptions) -> UIImage {
         let snapshots = shows.map { ShowSnapshot(from: $0) }
         return generate(snapshots: snapshots, performerName: performerName, options: options)
@@ -180,12 +187,11 @@ enum ShareImageGenerator {
 
     /// Generate from thread-safe ShowSnapshot values. Safe to call from any thread.
     static func generate(snapshots: [ShowSnapshot], performerName: String, options: ExportOptions) -> UIImage {
-        let baseSize = options.sizePreset.size
-        let size = computeCanvasSize(baseSize: baseSize, snapshots: snapshots, options: options)
+        let size = options.sizePreset.size
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
-            draw(in: ctx.cgContext, size: size, snapshots: snapshots,
-                 performerName: performerName, options: options)
+            drawCanvas(in: ctx.cgContext, size: size, snapshots: snapshots,
+                       performerName: performerName, options: options)
         }
     }
 
@@ -194,255 +200,342 @@ enum ShareImageGenerator {
         return generate(shows: shows, performerName: performerName, options: ExportOptions())
     }
 
-    // MARK: - Compute dynamic canvas size
+    // MARK: - Main Canvas
 
-    private static func computeCanvasSize(baseSize: CGSize, snapshots: [ShowSnapshot],
-                                          options: ExportOptions) -> CGSize {
-        let allShows = snapshots.sorted { $0.dateOrNow < $1.dateOrNow }
-        let count = allShows.count
-        guard count > 0 else { return baseSize }
-
-        let w = baseSize.width
-        let isVertical = baseSize.height >= baseSize.width
-
-        let baseRowH = isVertical ? w * 0.13 : baseSize.height * 0.135
-        let rowH = baseRowH * 1.6
-
-        let headerH: CGFloat = isVertical ? baseSize.height * 0.55 : baseSize.height * 0.35
-        let bottomH: CGFloat = options.showBottomBar ? baseSize.height * 0.07 : baseSize.height * 0.05
-
-        let neededH = headerH + (CGFloat(count) * rowH) + bottomH
-        let finalH = max(baseSize.height, neededH)
-        return CGSize(width: w, height: finalH)
-    }
-
-    // MARK: - Main draw
-
-    private static func draw(in ctx: CGContext, size: CGSize, snapshots: [ShowSnapshot],
-                              performerName: String, options: ExportOptions) {
-        let rect     = CGRect(origin: .zero, size: size)
+    private static func drawCanvas(in ctx: CGContext, size: CGSize, snapshots: [ShowSnapshot],
+                                    performerName: String, options: ExportOptions) {
+        let rect = CGRect(origin: .zero, size: size)
         let allShows = snapshots.sorted { $0.dateOrNow < $1.dateOrNow }
         let featured = allShows.first
-        let accent   = UIColor(hex: options.accentHex)
+        let accent = UIColor(hex: options.accentHex)
+        let isLight = options.backgroundStyle == .light
 
-        drawBackground(ctx: ctx, rect: rect, featured: featured, style: options.backgroundStyle,
-                       customBG: options.customBackground)
+        // 1. Background
+        drawBackground(ctx: ctx, rect: rect, featured: featured,
+                       style: options.backgroundStyle, customBG: options.customBackground)
 
-        let scrim: CGFloat = options.backgroundStyle == .light ? 0 : 0.5
-        ctx.setFillColor(UIColor.black.withAlphaComponent(scrim).cgColor)
+        // 2. Scrim overlay for readability
+        let scrimAlpha: CGFloat = isLight ? 0.05 : 0.55
+        ctx.setFillColor(UIColor.black.withAlphaComponent(scrimAlpha).cgColor)
         ctx.fill(rect)
 
-        let textColor: UIColor = options.backgroundStyle == .light ? UIColor(hex: "#1A1A1A") : .white
-        let subColor: UIColor  = options.backgroundStyle == .light
-            ? UIColor(hex: "#555555")
-            : UIColor.white.withAlphaComponent(0.7)
+        // 3. Colors
+        let textColor: UIColor = isLight ? UIColor(hex: "#1A1A1A") : .white
+        let subColor: UIColor = isLight ? UIColor(hex: "#666666") : UIColor.white.withAlphaComponent(0.65)
+        let cardBG: UIColor = isLight
+            ? UIColor.white.withAlphaComponent(0.85)
+            : UIColor.white.withAlphaComponent(0.08)
+        let cardBorder: UIColor = isLight
+            ? UIColor.black.withAlphaComponent(0.06)
+            : UIColor.white.withAlphaComponent(0.12)
 
-        if options.sizePreset.isVertical {
-            drawVertical(ctx: ctx, size: size, allShows: allShows, featured: featured,
-                         performerName: performerName, options: options,
-                         accent: accent, textColor: textColor, subColor: subColor)
-        } else {
-            drawHorizontal(ctx: ctx, size: size, allShows: allShows, featured: featured,
-                           performerName: performerName, options: options,
-                           accent: accent, textColor: textColor, subColor: subColor)
-        }
+        // 4. Layout metrics
+        let pad = size.width * 0.05
+        let headerH = size.width * 0.18  // compact header
+        let bottomH: CGFloat = options.showBottomBar ? size.width * 0.055 : 0
+        let gridTop = pad + headerH
+        let gridBottom = size.height - bottomH - pad * 0.5
+        let gridH = gridBottom - gridTop
+        let gridW = size.width - pad * 2
 
+        // 5. Header
+        drawHeader(ctx: ctx, size: size, pad: pad, performerName: performerName,
+                   options: options, accent: accent, textColor: textColor, subColor: subColor)
+
+        // 6. Card grid
+        let cols = options.sizePreset.isVertical ? 2 : 3
+        drawCardGrid(ctx: ctx, allShows: allShows, options: options,
+                     gridOrigin: CGPoint(x: pad, y: gridTop),
+                     gridSize: CGSize(width: gridW, height: gridH),
+                     cols: cols, accent: accent, textColor: textColor,
+                     subColor: subColor, cardBG: cardBG, cardBorder: cardBorder, isLight: isLight)
+
+        // 7. Bottom bar
         if options.showBottomBar {
-            let barH = size.height * 0.07
-            ctx.setFillColor(UIColor.black.withAlphaComponent(0.5).cgColor)
-            ctx.fill(CGRect(x: 0, y: size.height - barH, width: size.width, height: barH))
-            drawText("SEE ME LIVE  +  Tap for tickets",
-                     at: CGPoint(x: size.width * 0.05, y: size.height - barH * 0.72),
-                     font: .systemFont(ofSize: size.width * 0.022, weight: .semibold),
-                     color: accent, maxWidth: size.width * 0.9, canvasHeight: size.height)
+            drawBottomBar(ctx: ctx, size: size, barH: bottomH, accent: accent)
         }
 
+        // 8. Custom text overlays
         if !options.textOverlays.isEmpty {
             drawTextOverlays(options.textOverlays, in: size, ctx: ctx)
         }
     }
 
-    // MARK: - Vertical (Story / TikTok / Square)
+    // MARK: - Header
 
-    private static func drawVertical(ctx: CGContext, size: CGSize, allShows: [ShowSnapshot],
-                                     featured: ShowSnapshot?, performerName: String,
-                                     options: ExportOptions, accent: UIColor,
-                                     textColor: UIColor, subColor: UIColor) {
-        let pad = size.width * 0.07
+    private static func drawHeader(ctx: CGContext, size: CGSize, pad: CGFloat,
+                                    performerName: String, options: ExportOptions,
+                                    accent: UIColor, textColor: UIColor, subColor: UIColor) {
+        var x = pad
+        let topY = pad
 
-        if let data = featured?.flyerImageData, let flyer = UIImage(data: data) {
-            let flyerRect = CGRect(x: 0, y: 0, width: size.width, height: size.height * 0.45)
-            ctx.saveGState()
-            ctx.clip(to: flyerRect)
-            drawImage(flyer, in: flyerRect)
-            let fadeColors = [UIColor.black.withAlphaComponent(0).cgColor,
-                              UIColor.black.withAlphaComponent(0.85).cgColor] as CFArray
-            if let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                     colors: fadeColors, locations: [0, 1]) {
-                ctx.drawLinearGradient(grad,
-                                       start: CGPoint(x: 0, y: size.height * 0.28),
-                                       end:   CGPoint(x: 0, y: size.height * 0.45),
-                                       options: [])
-            }
-            ctx.restoreGState()
-        }
+        // Performer name — large, left-aligned
+        let nameSz = size.width * 0.065
+        let nameFont = UIFont.systemFont(ofSize: nameSz, weight: .bold)
+        let name = performerName.isEmpty ? "My Shows" : performerName
+        drawText(name, at: CGPoint(x: x, y: topY), font: nameFont,
+                 color: textColor, maxWidth: size.width * 0.6, canvasHeight: size.height)
 
-        var curY = size.height * 0.50
+        // "SEE ME LIVE" pill badge — top right
         if options.showBadge {
-            drawText("SEE ME LIVE", at: CGPoint(x: pad, y: curY),
-                     font: .systemFont(ofSize: size.width * 0.035, weight: .bold),
-                     color: accent, maxWidth: size.width * 0.86, canvasHeight: size.height)
-            curY += size.width * 0.05
-        }
-        let nameFont = UIFont.systemFont(ofSize: size.width * 0.10, weight: .heavy)
-        drawText(performerName.isEmpty ? "Upcoming Shows" : performerName,
-                 at: CGPoint(x: pad, y: curY),
-                 font: nameFont, color: textColor,
-                 maxWidth: size.width * 0.86, canvasHeight: size.height)
-        curY += nameFont.lineHeight * 1.5
+            let badgeSz = size.width * 0.02
+            let badgeFont = UIFont.systemFont(ofSize: badgeSz, weight: .heavy)
+            let badgeText = "SEE ME LIVE" as NSString
+            let badgeAttrs: [NSAttributedString.Key: Any] = [.font: badgeFont, .foregroundColor: UIColor.white]
+            let badgeTextSize = badgeText.size(withAttributes: badgeAttrs)
+            let pillW = badgeTextSize.width + badgeSz * 3
+            let pillH = badgeTextSize.height + badgeSz * 1.5
+            let pillX = size.width - pad - pillW
+            let pillY = topY + nameSz * 0.15
 
-        drawShowRows(ctx: ctx, size: size, allShows: allShows, options: options,
-                     startY: curY, pad: pad, textColor: textColor, subColor: subColor,
-                     titleSz: size.width * 0.044, subSz: size.width * 0.031,
-                     rowH: size.width * 0.13)
+            let pillRect = CGRect(x: pillX, y: pillY, width: pillW, height: pillH)
+            let pillPath = UIBezierPath(roundedRect: pillRect, cornerRadius: pillH / 2)
+            ctx.saveGState()
+            ctx.setFillColor(accent.cgColor)
+            ctx.addPath(pillPath.cgPath)
+            ctx.fillPath()
+            ctx.restoreGState()
+
+            UIGraphicsPushContext(ctx)
+            badgeText.draw(at: CGPoint(x: pillX + badgeSz * 1.5,
+                                        y: pillY + badgeSz * 0.75),
+                           withAttributes: badgeAttrs)
+            UIGraphicsPopContext()
+        }
+
+        // Subtitle line
+        let subY = topY + nameSz * 1.35
+        let subSz = size.width * 0.026
+        let subFont = UIFont.systemFont(ofSize: subSz, weight: .medium)
+        let subStr = "Upcoming Schedule"
+        drawText(subStr, at: CGPoint(x: x, y: subY), font: subFont,
+                 color: subColor, maxWidth: size.width * 0.5, canvasHeight: size.height)
+
+        // Thin divider line
+        let divY = subY + subSz * 2
+        ctx.setStrokeColor(textColor.withAlphaComponent(0.1).cgColor)
+        ctx.setLineWidth(1)
+        ctx.move(to: CGPoint(x: pad, y: divY))
+        ctx.addLine(to: CGPoint(x: size.width - pad, y: divY))
+        ctx.strokePath()
     }
 
-    // MARK: - Horizontal (Twitter / Facebook / OG)
+    // MARK: - Card Grid
 
-    private static func drawHorizontal(ctx: CGContext, size: CGSize, allShows: [ShowSnapshot],
-                                       featured: ShowSnapshot?, performerName: String,
-                                       options: ExportOptions, accent: UIColor,
-                                       textColor: UIColor, subColor: UIColor) {
-        let pad      = size.width * 0.05
-        var contentW = size.width - pad * 2
+    private static func drawCardGrid(ctx: CGContext, allShows: [ShowSnapshot],
+                                      options: ExportOptions,
+                                      gridOrigin: CGPoint, gridSize: CGSize,
+                                      cols: Int, accent: UIColor, textColor: UIColor,
+                                      subColor: UIColor, cardBG: UIColor,
+                                      cardBorder: UIColor, isLight: Bool) {
 
-        if let data = featured?.flyerImageData, let flyer = UIImage(data: data) {
-            let tw = size.width * 0.27
-            let th = size.height * 0.70
-            let tx = size.width - pad - tw
-            let ty = (size.height - th) / 2
-            let tRect = CGRect(x: tx, y: ty, width: tw, height: th)
-            ctx.saveGState()
-            ctx.addPath(UIBezierPath(roundedRect: tRect, cornerRadius: 14).cgPath)
-            ctx.clip()
-            drawImage(flyer, in: tRect)
-            ctx.restoreGState()
-            ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.2).cgColor)
-            ctx.setLineWidth(2)
-            UIBezierPath(roundedRect: tRect, cornerRadius: 14).stroke()
-            contentW = tx - pad * 1.5
-        }
-
-        var curY = size.height * 0.13
-        if options.showBadge {
-            let bFont = UIFont.systemFont(ofSize: size.width * 0.022, weight: .bold)
-            drawText("SEE ME LIVE", at: CGPoint(x: pad, y: curY),
-                     font: bFont, color: accent, maxWidth: contentW, canvasHeight: size.height)
-            curY += bFont.lineHeight * 1.3
-        }
-        let nameFont = UIFont.systemFont(ofSize: size.width * 0.062, weight: .heavy)
-        drawText(performerName.isEmpty ? "Upcoming Shows" : performerName,
-                 at: CGPoint(x: pad, y: curY),
-                 font: nameFont, color: textColor, maxWidth: contentW, canvasHeight: size.height)
-        curY += nameFont.lineHeight * 1.5
-
-        drawShowRows(ctx: ctx, size: size, allShows: allShows, options: options,
-                     startY: curY, pad: pad, textColor: textColor, subColor: subColor,
-                     titleSz: size.width * 0.028, subSz: size.width * 0.020,
-                     rowH: size.height * 0.135, maxX: pad + contentW)
-    }
-
-    // MARK: - Shared row drawing
-
-    private static func drawShowRows(ctx: CGContext, size: CGSize, allShows: [ShowSnapshot],
-                                     options: ExportOptions, startY: CGFloat, pad: CGFloat,
-                                     textColor: UIColor, subColor: UIColor,
-                                     titleSz: CGFloat, subSz: CGFloat, rowH: CGFloat,
-                                     maxX: CGFloat? = nil) {
-        let lineEnd = maxX ?? (size.width - pad)
-        let detailSz = subSz * 0.9
-        // Each row needs more height to fit additional detail lines
-        let expandedRowH = rowH * 1.6
-
-        if allShows.isEmpty {
-            drawText("No shows yet", at: CGPoint(x: pad, y: startY),
-                     font: .systemFont(ofSize: subSz, weight: .regular),
-                     color: subColor, maxWidth: lineEnd - pad, canvasHeight: size.height)
+        guard !allShows.isEmpty else {
+            let emptyFont = UIFont.systemFont(ofSize: gridSize.width * 0.04, weight: .medium)
+            drawText("No shows scheduled yet",
+                     at: CGPoint(x: gridOrigin.x, y: gridOrigin.y + gridSize.height * 0.4),
+                     font: emptyFont, color: subColor,
+                     maxWidth: gridSize.width, canvasHeight: gridOrigin.y + gridSize.height)
             return
         }
 
-        var y = startY
-        // Draw EVERY show — no count limit, no clipping
-        for show in allShows {
-            ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.15).cgColor)
+        let count = allShows.count
+        let gap = gridSize.width * 0.025
+        let rows = Int(ceil(Double(count) / Double(cols)))
+
+        let cardW = (gridSize.width - gap * CGFloat(cols - 1)) / CGFloat(cols)
+        let cardH = (gridSize.height - gap * CGFloat(rows - 1)) / CGFloat(rows)
+        let cornerR: CGFloat = cardW * 0.06
+
+        // Scale fonts relative to card size
+        let scale = min(cardW / 300, cardH / 200)  // normalize to a reference card
+        let titleSz  = max(12, 18 * scale)
+        let venueSz  = max(9, 13 * scale)
+        let timeSz   = max(8, 12 * scale)
+        let priceSz  = max(8, 11 * scale)
+        let dateBadgeSz  = max(8, 11 * scale)
+        let dateDaySz    = max(14, 24 * scale)
+        let dateBadgeR   = max(16, 28 * scale)
+
+        for (i, show) in allShows.enumerated() {
+            let col = i % cols
+            let row = i / cols
+
+            let cx = gridOrigin.x + CGFloat(col) * (cardW + gap)
+            let cy = gridOrigin.y + CGFloat(row) * (cardH + gap)
+            let cardRect = CGRect(x: cx, y: cy, width: cardW, height: cardH)
+            let cardPath = UIBezierPath(roundedRect: cardRect, cornerRadius: cornerR)
+
+            // Card background (frosted glass)
+            ctx.saveGState()
+            ctx.setFillColor(cardBG.cgColor)
+            ctx.addPath(cardPath.cgPath)
+            ctx.fillPath()
+            ctx.restoreGState()
+
+            // Card border
+            ctx.saveGState()
+            ctx.setStrokeColor(cardBorder.cgColor)
             ctx.setLineWidth(1)
-            ctx.move(to: CGPoint(x: pad, y: y))
-            ctx.addLine(to: CGPoint(x: lineEnd, y: y))
+            ctx.addPath(cardPath.cgPath)
             ctx.strokePath()
+            ctx.restoreGState()
 
-            var ly = y + expandedRowH * 0.08
+            let inset = cardW * 0.08
+            let contentX = cx + inset
+            let contentW = cardW - inset * 2
+            var curY = cy + inset
 
-            // Row 1: Title (+ role if present)
+            // Date badge circle
+            let badgeCenterX = contentX + dateBadgeR
+            let badgeCenterY = curY + dateBadgeR
+            let badgeCircle = CGRect(x: badgeCenterX - dateBadgeR,
+                                     y: badgeCenterY - dateBadgeR,
+                                     width: dateBadgeR * 2, height: dateBadgeR * 2)
+            ctx.saveGState()
+            ctx.setFillColor(accent.withAlphaComponent(0.15).cgColor)
+            ctx.fillEllipse(in: badgeCircle)
+            ctx.restoreGState()
+
+            // Month text in badge
+            let monthFont = UIFont.systemFont(ofSize: dateBadgeSz, weight: .heavy)
+            let monthAttrs: [NSAttributedString.Key: Any] = [.font: monthFont, .foregroundColor: accent]
+            let monthStr = show.monthAbbrev as NSString
+            let monthSize = monthStr.size(withAttributes: monthAttrs)
+            UIGraphicsPushContext(ctx)
+            monthStr.draw(at: CGPoint(x: badgeCenterX - monthSize.width / 2,
+                                       y: badgeCenterY - dateBadgeR * 0.55),
+                          withAttributes: monthAttrs)
+            UIGraphicsPopContext()
+
+            // Day number in badge
+            let dayFont = UIFont.systemFont(ofSize: dateDaySz, weight: .bold)
+            let dayAttrs: [NSAttributedString.Key: Any] = [.font: dayFont, .foregroundColor: textColor]
+            let dayStr = show.dayNumber as NSString
+            let daySize = dayStr.size(withAttributes: dayAttrs)
+            UIGraphicsPushContext(ctx)
+            dayStr.draw(at: CGPoint(x: badgeCenterX - daySize.width / 2,
+                                     y: badgeCenterY - dateBadgeR * 0.05),
+                        withAttributes: dayAttrs)
+            UIGraphicsPopContext()
+
+            // Title — to the right of the badge
+            let titleX = badgeCenterX + dateBadgeR + inset * 0.6
+            let titleW = contentW - (dateBadgeR * 2 + inset * 0.6)
+            let titleFont = UIFont.systemFont(ofSize: titleSz, weight: .semibold)
+
             let titleStr: String
             if !show.roleOrEmpty.isEmpty {
-                titleStr = "\(show.titleOrEmpty)  ·  \(show.roleOrEmpty)"
+                titleStr = show.titleOrEmpty
             } else {
                 titleStr = show.titleOrEmpty
             }
-            drawText(titleStr,
-                     at: CGPoint(x: pad, y: ly),
-                     font: .systemFont(ofSize: titleSz, weight: .bold),
-                     color: textColor, maxWidth: lineEnd - pad, canvasHeight: size.height)
-            ly += titleSz * 1.45
+            drawText(titleStr, at: CGPoint(x: titleX, y: curY + dateBadgeR * 0.15),
+                     font: titleFont, color: textColor,
+                     maxWidth: max(1, titleW), canvasHeight: curY + dateBadgeR * 2)
 
-            // Row 2: Date & Venue
-            var parts: [String] = []
-            if options.showDate  { parts.append(show.dateFormatted) }
-            if options.showVenue, !show.venueOrEmpty.isEmpty { parts.append(show.venueOrEmpty) }
-            if !parts.isEmpty {
-                drawText(parts.joined(separator: "  ·  "),
-                         at: CGPoint(x: pad, y: ly),
-                         font: .systemFont(ofSize: subSz, weight: .regular),
-                         color: subColor, maxWidth: lineEnd - pad, canvasHeight: size.height)
-                ly += subSz * 1.45
+            // Role (smaller, below title if room)
+            if !show.roleOrEmpty.isEmpty {
+                let roleFont = UIFont.systemFont(ofSize: venueSz, weight: .medium)
+                drawText(show.roleOrEmpty,
+                         at: CGPoint(x: titleX, y: curY + dateBadgeR * 0.15 + titleSz * 1.3),
+                         font: roleFont, color: accent,
+                         maxWidth: max(1, titleW), canvasHeight: curY + dateBadgeR * 2)
             }
 
-            // Row 3: Price & Ticket Link
-            var extraParts: [String] = []
-            if show.price > 0 {
-                extraParts.append(show.priceFormatted)
-            } else {
-                extraParts.append("Free")
-            }
-            if show.hasTicketLink {
-                extraParts.append("🎟 Tickets Available")
-            }
-            if !extraParts.isEmpty {
-                drawText(extraParts.joined(separator: "  ·  "),
-                         at: CGPoint(x: pad, y: ly),
-                         font: .systemFont(ofSize: detailSz, weight: .medium),
-                         color: subColor.withAlphaComponent(0.85),
-                         maxWidth: lineEnd - pad, canvasHeight: size.height)
-                ly += detailSz * 1.45
+            curY += dateBadgeR * 2 + inset * 0.4
+
+            // Divider inside card
+            ctx.setStrokeColor(textColor.withAlphaComponent(0.08).cgColor)
+            ctx.setLineWidth(0.5)
+            ctx.move(to: CGPoint(x: contentX, y: curY))
+            ctx.addLine(to: CGPoint(x: contentX + contentW, y: curY))
+            ctx.strokePath()
+            curY += inset * 0.4
+
+            // Venue with pin icon (text only — no SF Symbols in CGContext)
+            if options.showVenue && !show.venueOrEmpty.isEmpty {
+                let venueFont = UIFont.systemFont(ofSize: venueSz, weight: .medium)
+                drawText("📍 " + show.venueOrEmpty,
+                         at: CGPoint(x: contentX, y: curY),
+                         font: venueFont, color: subColor,
+                         maxWidth: contentW, canvasHeight: cardRect.maxY - inset)
+                curY += venueSz * 1.6
             }
 
-            // Row 4: Notes (truncated)
-            if !show.notesOrEmpty.isEmpty {
-                let truncatedNotes: String
-                if show.notesOrEmpty.count > 60 {
-                    truncatedNotes = String(show.notesOrEmpty.prefix(57)) + "..."
-                } else {
-                    truncatedNotes = show.notesOrEmpty
+            // Time
+            if options.showDate {
+                let timeFont = UIFont.systemFont(ofSize: timeSz, weight: .regular)
+                drawText("🕐 " + show.timeString,
+                         at: CGPoint(x: contentX, y: curY),
+                         font: timeFont, color: subColor,
+                         maxWidth: contentW, canvasHeight: cardRect.maxY - inset)
+                curY += timeSz * 1.6
+            }
+
+            // Price tag — bottom of card
+            let priceY = cardRect.maxY - inset - priceSz * 1.8
+            if priceY > curY {
+                let priceFont = UIFont.systemFont(ofSize: priceSz, weight: .semibold)
+                let priceStr = show.price > 0 ? show.priceFormatted : "FREE"
+                let priceAttrs: [NSAttributedString.Key: Any] = [
+                    .font: priceFont,
+                    .foregroundColor: accent
+                ]
+                let priceTextSize = (priceStr as NSString).size(withAttributes: priceAttrs)
+
+                // Price pill
+                let pillPad: CGFloat = priceSz * 0.5
+                let pricePillRect = CGRect(x: contentX,
+                                           y: priceY,
+                                           width: priceTextSize.width + pillPad * 2,
+                                           height: priceTextSize.height + pillPad)
+                let pricePillPath = UIBezierPath(roundedRect: pricePillRect,
+                                                  cornerRadius: pricePillRect.height / 2)
+                ctx.saveGState()
+                ctx.setFillColor(accent.withAlphaComponent(0.12).cgColor)
+                ctx.addPath(pricePillPath.cgPath)
+                ctx.fillPath()
+                ctx.restoreGState()
+
+                UIGraphicsPushContext(ctx)
+                (priceStr as NSString).draw(at: CGPoint(x: contentX + pillPad,
+                                                         y: priceY + pillPad * 0.5),
+                                            withAttributes: priceAttrs)
+                UIGraphicsPopContext()
+
+                // Ticket indicator
+                if show.hasTicketLink {
+                    let ticketFont = UIFont.systemFont(ofSize: priceSz * 0.85, weight: .medium)
+                    let ticketX = contentX + pricePillRect.width + pillPad
+                    drawText("🎟", at: CGPoint(x: ticketX, y: priceY + pillPad * 0.3),
+                             font: ticketFont, color: subColor,
+                             maxWidth: contentW - pricePillRect.width - pillPad,
+                             canvasHeight: cardRect.maxY)
                 }
-                drawText(truncatedNotes,
-                         at: CGPoint(x: pad, y: ly),
-                         font: .italicSystemFont(ofSize: detailSz),
-                         color: subColor.withAlphaComponent(0.7),
-                         maxWidth: lineEnd - pad, canvasHeight: size.height)
             }
-
-            y += expandedRowH
         }
+    }
+
+    // MARK: - Bottom Bar
+
+    private static func drawBottomBar(ctx: CGContext, size: CGSize, barH: CGFloat, accent: UIColor) {
+        let barRect = CGRect(x: 0, y: size.height - barH, width: size.width, height: barH)
+        ctx.setFillColor(UIColor.black.withAlphaComponent(0.4).cgColor)
+        ctx.fill(barRect)
+
+        let fontSize = size.width * 0.02
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let text = "SEE ME LIVE  ·  seemelive.app"
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: accent.withAlphaComponent(0.9)
+        ]
+        let textSize = (text as NSString).size(withAttributes: attrs)
+        let tx = (size.width - textSize.width) / 2
+        let ty = size.height - barH + (barH - textSize.height) / 2
+        UIGraphicsPushContext(ctx)
+        (text as NSString).draw(at: CGPoint(x: tx, y: ty), withAttributes: attrs)
+        UIGraphicsPopContext()
     }
 
     // MARK: - Background
@@ -467,7 +560,7 @@ enum ShareImageGenerator {
                     }
                 case .photo:
                     if let data = bg.photoData, let img = UIImage(data: data) {
-                        UIGraphicsPushContext(ctx); img.draw(in: rect); UIGraphicsPopContext()
+                        drawImageFill(img, in: rect, ctx: ctx)
                     } else {
                         ctx.setFillColor(UIColor(hex: "#111111").cgColor); ctx.fill(rect)
                     }
@@ -477,7 +570,7 @@ enum ShareImageGenerator {
             }
         case .flyer:
             if let data = featured?.flyerImageData, let img = UIImage(data: data) {
-                UIGraphicsPushContext(ctx); img.draw(in: rect); UIGraphicsPopContext(); return
+                drawImageFill(img, in: rect, ctx: ctx); return
             }
             fallthrough
         case .gradient:
@@ -507,28 +600,21 @@ enum ShareImageGenerator {
                     ?? UIFont.systemFont(ofSize: resolvedSize, weight: uiFontWeight(overlay.fontWeight))
             }
             let color = UIColor(hex: overlay.colorHex)
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: color
-            ]
+            let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
             let text = overlay.text as NSString
             let textSize = text.size(withAttributes: attrs)
-
             let cx = overlay.positionX * size.width
             let cy = overlay.positionY * size.height
 
             ctx.saveGState()
             ctx.translateBy(x: cx, y: cy)
-            if overlay.rotation != 0 {
-                ctx.rotate(by: overlay.rotation * .pi / 180)
-            }
+            if overlay.rotation != 0 { ctx.rotate(by: overlay.rotation * .pi / 180) }
 
             let drawRect = CGRect(x: -textSize.width / 2, y: -textSize.height / 2,
                                   width: textSize.width, height: textSize.height)
             UIGraphicsPushContext(ctx)
             text.draw(in: drawRect, withAttributes: attrs)
             UIGraphicsPopContext()
-
             ctx.restoreGState()
         }
     }
@@ -550,20 +636,31 @@ enum ShareImageGenerator {
 
     // MARK: - Primitives
 
-    private static func drawImage(_ image: UIImage, in rect: CGRect) {
-        let a = image.size.width / image.size.height
-        let b = rect.width / rect.height
-        var r = rect
-        if a > b { let h = rect.width / a;  r = CGRect(x: rect.minX, y: rect.midY-h/2, width: rect.width,  height: h) }
-        else      { let w = rect.height * a; r = CGRect(x: rect.midX-w/2, y: rect.minY, width: w, height: rect.height) }
-        image.draw(in: r)
+    /// Draw image filling the rect (aspect-fill, centered crop).
+    private static func drawImageFill(_ image: UIImage, in rect: CGRect, ctx: CGContext) {
+        let imgAspect = image.size.width / image.size.height
+        let rectAspect = rect.width / rect.height
+        var drawRect = rect
+        if imgAspect > rectAspect {
+            let w = rect.height * imgAspect
+            drawRect = CGRect(x: rect.midX - w / 2, y: rect.minY, width: w, height: rect.height)
+        } else {
+            let h = rect.width / imgAspect
+            drawRect = CGRect(x: rect.minX, y: rect.midY - h / 2, width: rect.width, height: h)
+        }
+        ctx.saveGState()
+        ctx.clip(to: rect)
+        UIGraphicsPushContext(ctx)
+        image.draw(in: drawRect)
+        UIGraphicsPopContext()
+        ctx.restoreGState()
     }
 
     private static func drawText(_ text: String, at origin: CGPoint, font: UIFont,
                                   color: UIColor, maxWidth: CGFloat, canvasHeight: CGFloat,
                                   lineSpacing: CGFloat = 0) {
         let ps = NSMutableParagraphStyle()
-        ps.lineSpacing = lineSpacing; ps.lineBreakMode = .byWordWrapping
+        ps.lineSpacing = lineSpacing; ps.lineBreakMode = .byTruncatingTail
         NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: ps])
             .draw(in: CGRect(x: origin.x, y: origin.y, width: maxWidth, height: canvasHeight - origin.y))
     }
