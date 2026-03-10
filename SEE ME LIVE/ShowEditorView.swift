@@ -80,8 +80,21 @@ struct ShowEditorView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedField = nil }
+                        .fontWeight(.semibold)
+                }
             }
-            .onAppear(perform: populateFromExisting)
+            .onAppear {
+                populateFromExisting()
+                // Auto-focus the title field for new shows
+                if showToEdit == nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        focusedField = .title
+                    }
+                }
+            }
             .onChange(of: selectedPhotoItem) { _, newItem in
                 Task { await loadPhoto(from: newItem) }
             }
@@ -155,6 +168,8 @@ struct ShowEditorView: View {
                 field: .title,
                 capitalization: .words
             )
+            .submitLabel(.next)
+            .onSubmit { focusedField = .role }
             
             Divider().padding(.leading, 52)
 
@@ -165,6 +180,8 @@ struct ShowEditorView: View {
                 field: .role,
                 capitalization: .words
             )
+            .submitLabel(.next)
+            .onSubmit { focusedField = .venue }
             
             Divider().padding(.leading, 52)
 
@@ -175,6 +192,8 @@ struct ShowEditorView: View {
                 field: .venue,
                 capitalization: .words
             )
+            .submitLabel(.next)
+            .onSubmit { focusedField = .price }
             
             Divider().padding(.leading, 52)
 
@@ -200,6 +219,8 @@ struct ShowEditorView: View {
                 keyboardType: .URL,
                 autocapitalization: false
             )
+            .submitLabel(.done)
+            .onSubmit { focusedField = nil }
         }
         .background(Color("CardBackground"))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -214,7 +235,6 @@ struct ShowEditorView: View {
                 .frame(width: 24)
             DatePicker("Date & Time",
                        selection: $date,
-                       in: Date()...,
                        displayedComponents: [.date, .hourAndMinute])
             .labelsHidden()
         }
@@ -290,7 +310,7 @@ struct ShowEditorView: View {
                     ProgressView()
                         .tint(.white)
                 }
-                Text(showToEdit == nil ? "Add Event" : "Update Event")
+                Text(showToEdit == nil ? "Save Show" : "Update Show")
                     .font(.system(size: 17, weight: .semibold))
             }
             .frame(maxWidth: .infinity)

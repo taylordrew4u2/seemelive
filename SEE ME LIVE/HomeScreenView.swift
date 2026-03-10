@@ -25,6 +25,12 @@ struct HomeScreenView: View {
         animation: .default
     ) private var allShows: FetchedResults<Show>
 
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \Show.date, ascending: false)],
+        predicate: NSPredicate(format: "date < %@", Date() as NSDate),
+        animation: .default
+    ) private var pastShows: FetchedResults<Show>
+
     @State private var isPresentingEditor = false
     @State private var showToEdit: Show?
     @State private var toastMessage: String?
@@ -71,6 +77,13 @@ struct HomeScreenView: View {
                                 .padding(.bottom, 32)
                         }
 
+                        // ── Past Shows ──
+                        if !pastShows.isEmpty {
+                            pastShowsSection
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 32)
+                        }
+
                         Spacer(minLength: 100)
                     }
                 }
@@ -91,6 +104,11 @@ struct HomeScreenView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $isPresentingEditor, onDismiss: {
+                if showToEdit != nil {
+                    showToastBriefly("Show updated ✓")
+                } else if !allShows.isEmpty {
+                    showToastBriefly("Show saved 🎉")
+                }
                 showToEdit = nil
             }) {
                 ShowEditorView(showToEdit: showToEdit)
@@ -281,7 +299,7 @@ struct HomeScreenView: View {
                 .padding(.leading, 4)
 
             VStack(spacing: 0) {
-                let remaining = Array(upcomingShows.dropFirst().prefix(6))
+                let remaining = Array(upcomingShows.dropFirst())
                 ForEach(Array(remaining.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {
@@ -297,27 +315,6 @@ struct HomeScreenView: View {
                         Divider()
                             .padding(.leading, 68)
                     }
-                }
-
-                if upcomingShows.count > 7 {
-                    Divider().padding(.leading, 68)
-
-                    NavigationLink {
-                        AllShowsListView(shows: Array(upcomingShows))
-                    } label: {
-                        HStack {
-                            Text("See All \(upcomingShows.count) Shows")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.accentColor)
-                            Spacer()
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Color.accentColor.opacity(0.6))
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 14)
-                    }
-                    .buttonStyle(RowPress())
                 }
             }
             .background(Color("CardBackground"))
@@ -375,6 +372,44 @@ struct HomeScreenView: View {
             .buttonStyle(CardPress())
 
             Spacer(minLength: 60)
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Past Shows Section
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var pastShowsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("PAST SHOWS")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+                .tracking(1)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                ForEach(Array(pastShows.enumerated()), id: \.element.objectID) { idx, show in
+                    NavigationLink {
+                        ShowDetailView(show: show) {
+                            showToEdit = show
+                            isPresentingEditor = true
+                        }
+                    } label: {
+                        ShowRow(show: show)
+                            .opacity(0.7)
+                    }
+                    .buttonStyle(RowPress())
+
+                    if idx < pastShows.count - 1 {
+                        Divider()
+                            .padding(.leading, 68)
+                    }
+                }
+            }
+            .background(Color("CardBackground"))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.06),
+                    radius: 12, x: 0, y: 4)
         }
     }
 
@@ -452,6 +487,18 @@ struct HomeScreenView: View {
 
     private func timeString(from date: Date) -> String {
         let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
+    }
+
+    private func showToastBriefly(_ message: String) {
+        toastMessage = message
+        withAnimation(.spring(response: 0.4)) {
+            showToast = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                showToast = false
+            }
+        }
     }
 }
 
