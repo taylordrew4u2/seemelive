@@ -28,6 +28,8 @@ struct ShareLinkSheetView: View {
     @State private var options: ExportOptions = ExportOptions()
     @State private var cachedImage: UIImage   = UIImage()
     @State private var accentColor: Color     = Color(red: 204/255, green: 112/255, blue: 87/255)
+    @State private var textColor: Color?      = nil  // nil = auto
+    @State private var useAutoTextColor: Bool = true
     @State private var renderTask: Task<Void, Never>? = nil
     @State private var showEditor = false
     @State private var bgPhotoItem: PhotosPickerItem?
@@ -40,11 +42,18 @@ struct ShareLinkSheetView: View {
         return String(format: "#%02X%02X%02X", Int(r*255), Int(g*255), Int(b*255))
     }
 
-    // Accent color presets
-    private static let accentPresets: [String] = [
-        "#CC7057", "#FF3B30", "#FF9500", "#FFCC00", "#34C759",
-        "#00C7BE", "#007AFF", "#5856D6", "#AF52DE", "#FF2D55",
-        "#A2845E", "#FFFFFF", "#8E8E93"
+    private var textColorHex: String? {
+        guard !useAutoTextColor, let tc = textColor else { return nil }
+        let ui = UIColor(tc)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: nil)
+        return String(format: "#%02X%02X%02X", Int(r*255), Int(g*255), Int(b*255))
+    }
+
+    // Text color presets
+    private static let textColorPresets: [String] = [
+        "#FFFFFF", "#F5F5F5", "#E0E0E0", "#BDBDBD",
+        "#1A1A1A", "#333333", "#666666", "#999999"
     ]
 
     // MARK: Body
@@ -66,13 +75,14 @@ struct ShareLinkSheetView: View {
             .applyOptionChangeHandlers(options: $options, regenerate: regenerateImage)
             .onChange(of: performerName)           { regenerateImage() }
             .onChange(of: accentColor)             { regenerateImage() }
+            .onChange(of: textColor)               { regenerateImage() }
     }
 
     private var mainNavigation: some View {
         NavigationStack {
             scrollContent
                 .background(Color("AppBackground"))
-                .navigationTitle("Share My Shows")
+                .navigationTitle("Create Flyer")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -98,15 +108,14 @@ struct ShareLinkSheetView: View {
                 shareButtonSection
                 artistNameSection
                 platformSizeSection
-                backgroundSection
-                accentColorSection
+                textColorSection
                 customTextSection
                 headerStyleSection
                 fontStyleSection
                 dateFormatSection
                 fineTuningSection
-                cardStyleSection
                 gridColumnsSection
+                rowCountSection
                 togglesSection
                 previewSection
                 editImageButton
@@ -124,7 +133,7 @@ struct ShareLinkSheetView: View {
             HStack(spacing: 12) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 20, weight: .bold))
-                Text("Share My Shows")
+                Text("Create Flyer")
                     .font(.system(size: 19, weight: .bold))
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -156,22 +165,16 @@ struct ShareLinkSheetView: View {
                 ForEach(SocialSizePreset.allCases) { preset in
                     let selected = options.sizePreset == preset
                     Button { options.sizePreset = preset } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: preset.icon)
-                                .font(.system(size: 18))
-                            Text(preset.rawValue)
-                                .font(.system(size: 11, weight: .semibold))
-                                .multilineTextAlignment(.center)
-                            Text("\(Int(preset.size.width))x\(Int(preset.size.height))")
-                                .font(.system(size: 9))
-                                .foregroundStyle(selected ? .white.opacity(0.8) : .secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        PresetButtonLabel(
+                            icon: preset.icon,
+                            title: preset.rawValue,
+                            subtitle: "\(Int(preset.size.width))x\(Int(preset.size.height))"
+                        )
                         .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
                         .foregroundStyle(selected ? .white : .primary)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
+                    .frame(maxWidth: .infinity)
                     .buttonStyle(.plain)
                     .animation(.spring(response: 0.2), value: options.sizePreset)
                 }
@@ -179,155 +182,88 @@ struct ShareLinkSheetView: View {
         }
     }
 
-    private var backgroundSection: some View {
-        sectionCard(title: "Background", icon: "paintpalette.fill") {
+    private var textColorSection: some View {
+        sectionCard(title: "Text Color", icon: "textformat") {
             VStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    ForEach(BackgroundStyle.allCases.filter { $0 != .custom }) { style in
-                        let selected = options.backgroundStyle == style
-                        Button {
-                            options.backgroundStyle = style
-                        } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: style.icon)
-                                    .font(.system(size: 16))
-                                Text(style.rawValue)
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
-                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                            .foregroundStyle(selected ? .white : .primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .animation(.spring(response: 0.2), value: options.backgroundStyle)
+                // Auto toggle
+                Toggle(isOn: $useAutoTextColor) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 14))
+                        Text("Auto (based on background)")
+                            .font(.system(size: 14))
                     }
                 }
-
-                backgroundPhotoRow
-            }
-        }
-    }
-
-    private var backgroundPhotoRow: some View {
-        HStack(spacing: 12) {
-            PhotosPicker(selection: $bgPhotoItem, matching: .images) {
-                HStack(spacing: 8) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 14))
-                    Text(options.customBackground.photoData != nil ? "Change Image" : "Upload Background")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .foregroundStyle(options.backgroundStyle == .custom ? .white : .primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    options.backgroundStyle == .custom
-                        ? AnyShapeStyle(Color.accentColor)
-                        : AnyShapeStyle(Color.secondary.opacity(0.1)),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-            }
-            .buttonStyle(.plain)
-            .onChange(of: bgPhotoItem) { _, newItem in
-                Task { await loadBackgroundPhoto(from: newItem) }
-            }
-
-            if let thumb = bgPhotoThumb {
-                Image(uiImage: thumb)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.accentColor, lineWidth: 1.5)
-                    )
-
-                Button {
-                    options.customBackground.photoData = nil
-                    bgPhotoThumb = nil
-                    bgPhotoItem = nil
-                    if options.backgroundStyle == .custom {
-                        options.backgroundStyle = .gradient
+                .tint(Color.accentColor)
+                .onChange(of: useAutoTextColor) {
+                    if useAutoTextColor {
+                        textColor = nil
+                    } else if textColor == nil {
+                        textColor = .white
                     }
                     regenerateImage()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-            }
 
-            Spacer()
+                if !useAutoTextColor {
+                    // Preset colors
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(Self.textColorPresets, id: \.self) { hex in
+                                Button {
+                                    if let c = Color(hex: hex) { textColor = c }
+                                } label: {
+                                    Circle()
+                                        .fill(Color(hex: hex) ?? .gray)
+                                        .frame(width: 32, height: 32)
+                                        .overlay(
+                                            Circle().stroke(.gray.opacity(0.4), lineWidth: 1)
+                                        )
+                                        .overlay(
+                                            textColorSelectionRing(hex: hex)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        ColorPicker("", selection: Binding(
+                            get: { textColor ?? .white },
+                            set: { textColor = $0 }
+                        ), supportsOpacity: false)
+                            .labelsHidden()
+                            .frame(width: 36, height: 36)
+                        Text("Custom color")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
+            }
         }
     }
 
-    private var accentColorSection: some View {
-        sectionCard(title: "Accent Color", icon: "circle.fill") {
-            VStack(spacing: 12) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Self.accentPresets, id: \.self) { hex in
-                            Button {
-                                if let c = Color(hex: hex) { accentColor = c }
-                            } label: {
-                                Circle()
-                                    .fill(Color(hex: hex) ?? .gray)
-                                    .frame(width: 32, height: 32)
-                                    .overlay(
-                                        Circle().stroke(.white.opacity(0.3), lineWidth: 0.5)
-                                    )
-                                    .overlay(
-                                        accentHex.uppercased() == hex.uppercased()
-                                            ? Circle().stroke(Color.primary, lineWidth: 2.5)
-                                                .frame(width: 38, height: 38) : nil
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                HStack(spacing: 12) {
-                    ColorPicker("", selection: $accentColor, supportsOpacity: false)
-                        .labelsHidden()
-                        .frame(width: 36, height: 36)
-                    Text("Custom color")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-            }
+    @ViewBuilder
+    private func textColorSelectionRing(hex: String) -> some View {
+        if let currentHex = textColorHex, currentHex.uppercased() == hex.uppercased() {
+            Circle()
+                .stroke(Color.accentColor, lineWidth: 2.5)
+                .frame(width: 38, height: 38)
         }
     }
 
     private var customTextSection: some View {
         sectionCard(title: "Custom Text", icon: "character.cursor.ibeam") {
-            VStack(spacing: 10) {
-                HStack(spacing: 8) {
-                    Image(systemName: "tag.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20)
-                    TextField("Badge text", text: $options.badgeText)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 14))
-                        .submitLabel(.done)
-                }
-
-                HStack(spacing: 8) {
-                    Image(systemName: "text.below.photo")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20)
-                    TextField("Subtitle text", text: $options.subtitleText)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 14))
-                        .submitLabel(.done)
-                }
+            HStack(spacing: 8) {
+                Image(systemName: "text.below.photo")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20)
+                TextField("Subtitle text", text: $options.subtitleText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 14))
+                    .submitLabel(.done)
             }
         }
     }
@@ -338,17 +274,10 @@ struct ShareLinkSheetView: View {
                 ForEach(HeaderStyle.allCases) { style in
                     let selected = options.headerStyle == style
                     Button { options.headerStyle = style } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: style.icon)
-                                .font(.system(size: 16))
-                            Text(style.rawValue)
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                        .foregroundStyle(selected ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        SimplePresetButtonLabel(icon: style.icon, title: style.rawValue)
+                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                            .foregroundStyle(selected ? .white : .primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -362,17 +291,10 @@ struct ShareLinkSheetView: View {
                 ForEach(FontStyle.allCases) { style in
                     let selected = options.fontStyle == style
                     Button { options.fontStyle = style } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: style.icon)
-                                .font(.system(size: 14))
-                            Text(style.rawValue)
-                                .font(.system(size: 10, weight: .semibold))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                        .foregroundStyle(selected ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        SimplePresetButtonLabel(icon: style.icon, title: style.rawValue, iconSize: 14, titleSize: 10)
+                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                            .foregroundStyle(selected ? .white : .primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -436,48 +358,21 @@ struct ShareLinkSheetView: View {
                     Slider(value: $options.gridGap, in: 0...2.0, step: 0.1)
                         .tint(Color.accentColor)
                 }
-            }
-        }
-    }
 
-    private var cardStyleSection: some View {
-        sectionCard(title: "Card Style", icon: "rectangle.on.rectangle") {
-            VStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    ForEach(CardStyle.allCases) { style in
-                        let selected = options.cardStyle == style
-                        Button { options.cardStyle = style } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: style.icon)
-                                    .font(.system(size: 16))
-                                Text(style.rawValue)
-                                    .font(.system(size: 10, weight: .semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
-                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                            .foregroundStyle(selected ? .white : .primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+                Divider()
 
-                if options.cardStyle == .rounded || options.cardStyle == .sharp {
-                    HStack(spacing: 10) {
-                        Image(systemName: "circle.dotted")
-                            .font(.system(size: 12))
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Show Padding")
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.secondary)
-                        Slider(value: $options.cardOpacity, in: 0.1...1.0, step: 0.05)
-                            .tint(Color.accentColor)
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 12))
+                        Spacer()
+                        Text(options.showPadding < 0.6 ? "Tight" : options.showPadding > 1.4 ? "Loose" : "Normal")
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
-                        Text("\(Int(options.cardOpacity * 100))%")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 36)
                     }
+                    Slider(value: $options.showPadding, in: 0.2...2.0, step: 0.1)
+                        .tint(Color.accentColor)
                 }
             }
         }
@@ -503,45 +398,29 @@ struct ShareLinkSheetView: View {
         }
     }
 
+    private var rowCountSection: some View {
+        sectionCard(title: "Max Shows", icon: "list.number") {
+            HStack(spacing: 8) {
+                ForEach([0, 3, 5, 8, 10, 15], id: \.self) { count in
+                    let selected = options.maxRows == count
+                    Button { options.maxRows = count } label: {
+                        Text(count == 0 ? "All" : "\(count)")
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
+                            .foregroundStyle(selected ? .white : .primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     private var togglesSection: some View {
         sectionCard(title: "Include", icon: "checklist") {
-            VStack(spacing: 0) {
-                Toggle(isOn: $options.showDate) {
-                    Label("Date & Time", systemImage: "calendar")
-                        .font(.subheadline)
-                }
-                .tint(Color.accentColor)
-                Divider().padding(.vertical, 6)
-                Toggle(isOn: $options.showVenue) {
-                    Label("Venue", systemImage: "mappin.circle")
-                        .font(.subheadline)
-                }
-                .tint(Color.accentColor)
-                Divider().padding(.vertical, 6)
-                Toggle(isOn: $options.showPrice) {
-                    Label("Price", systemImage: "dollarsign.circle")
-                        .font(.subheadline)
-                }
-                .tint(Color.accentColor)
-                Divider().padding(.vertical, 6)
-                Toggle(isOn: $options.showTickets) {
-                    Label("Ticket Link", systemImage: "ticket")
-                        .font(.subheadline)
-                }
-                .tint(Color.accentColor)
-                Divider().padding(.vertical, 6)
-                Toggle(isOn: $options.showNotes) {
-                    Label("Notes", systemImage: "note.text")
-                        .font(.subheadline)
-                }
-                .tint(Color.accentColor)
-                Divider().padding(.vertical, 6)
-                Toggle(isOn: $options.showBadge) {
-                    Label("App Badge", systemImage: "tag.fill")
-                        .font(.subheadline)
-                }
-                .tint(Color.accentColor)
-            }
+            TogglesList(options: $options)
         }
     }
 
@@ -595,6 +474,7 @@ struct ShareLinkSheetView: View {
         let name  = performerName.isEmpty ? "My Shows" : performerName
         var opts  = options
         opts.accentHex = accentHex
+        opts.textColorHex = textColorHex
         // Snapshot Show managed objects on the main thread (safe).
         let snapshots = shows.map { ShowSnapshot(from: $0) }
         renderTask = Task.detached(priority: .userInitiated) {
@@ -656,6 +536,75 @@ struct ShareLinkSheetView: View {
     }
 }
 
+// MARK: - Helper Subviews to reduce inline complexity
+
+private struct PresetButtonLabel: View {
+    let icon: String
+    let title: String
+    let subtitle: String?
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .multilineTextAlignment(.center)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+    }
+}
+
+private struct SimplePresetButtonLabel: View {
+    let icon: String
+    let title: String
+    let iconSize: CGFloat
+    let titleSize: CGFloat
+
+    init(icon: String, title: String, iconSize: CGFloat = 16, titleSize: CGFloat = 11) {
+        self.icon = icon
+        self.title = title
+        self.iconSize = iconSize
+        self.titleSize = titleSize
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: iconSize))
+            Text(title)
+                .font(.system(size: titleSize, weight: .semibold))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 9)
+    }
+}
+
+private struct TogglesList: View {
+    @Binding var options: ExportOptions
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            toggleRow(isOn: $options.showDate, title: "Date & Time")
+            toggleRow(isOn: $options.showVenue, title: "Venue")
+        }
+    }
+
+    private func toggleRow(isOn: Binding<Bool>, title: String) -> some View {
+        Toggle(isOn: isOn) {
+            Text(title)
+                .font(.subheadline)
+        }
+        .tint(Color.accentColor)
+    }
+}
+
 // MARK: - Color(hex:) helper
 
 extension Color {
@@ -676,25 +625,23 @@ private struct OptionChangeHandlers: ViewModifier {
     let regenerate: () -> Void
 
     func body(content: Content) -> some View {
-        content
+        let base = content
             .onChange(of: options.sizePreset)      { regenerate() }
-            .onChange(of: options.backgroundStyle) { regenerate() }
             .onChange(of: options.showDate)        { regenerate() }
             .onChange(of: options.showVenue)       { regenerate() }
-            .onChange(of: options.showBadge)       { regenerate() }
-            .onChange(of: options.showPrice)       { regenerate() }
-            .onChange(of: options.showNotes)       { regenerate() }
-            .onChange(of: options.showTickets)     { regenerate() }
-            .onChange(of: options.cardStyle)       { regenerate() }
+
+        let group2 = base
             .onChange(of: options.columns)         { regenerate() }
-            .onChange(of: options.cardOpacity)     { regenerate() }
             .onChange(of: options.headerStyle)     { regenerate() }
             .onChange(of: options.fontStyle)       { regenerate() }
-            .onChange(of: options.badgeText)       { regenerate() }
             .onChange(of: options.subtitleText)    { regenerate() }
+
+        return group2
             .onChange(of: options.dateFormatStyle) { regenerate() }
             .onChange(of: options.scrimIntensity)  { regenerate() }
             .onChange(of: options.gridGap)         { regenerate() }
+            .onChange(of: options.showPadding)     { regenerate() }
+            .onChange(of: options.maxRows)         { regenerate() }
     }
 }
 
@@ -708,3 +655,5 @@ private extension View {
 #Preview {
     ShareLinkSheetView(userID: "preview", shows: [])
 }
+
+ 

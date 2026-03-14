@@ -23,7 +23,7 @@ struct ShowDetailView: View {
     @State private var appeared = false
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
+        ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // MARK: Header Image
                 headerImage
@@ -137,6 +137,7 @@ struct ShowDetailView: View {
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared ? 0 : 8)
         }
+        .scrollIndicators(.hidden)
         .background(Color("AppBackground").ignoresSafeArea())
         .navigationTitle("Details")
         .navigationBarTitleDisplayMode(.inline)

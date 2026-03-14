@@ -35,22 +35,12 @@ struct SplashScreenView: View {
                         .scaleEffect(pulseScale)
 
                     // Icon container
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.accentColor, Color.accentColor.opacity(0.85)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 110, height: 110)
-                            .shadow(color: Color.accentColor.opacity(0.3), radius: 20, y: 10)
-
-                        Image(systemName: "music.mic")
-                            .font(.system(size: 44, weight: .light))
-                            .foregroundStyle(.white)
-                    }
+                    Image("SplashIcon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 120, height: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                        .shadow(color: Color.accentColor.opacity(0.3), radius: 20, y: 10)
                 }
                 .scaleEffect(iconScale)
                 .opacity(iconOpacity)

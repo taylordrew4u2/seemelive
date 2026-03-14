@@ -282,7 +282,7 @@ struct ShareImageEditorView: View {
                 }
 
             case .gradient:
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView(.horizontal) {
                     HStack(spacing: 10) {
                         ForEach(Self.gradientPresets, id: \.label) { preset in
                             Button {
@@ -433,7 +433,7 @@ struct ShareImageEditorView: View {
     private func selectedOverlayControls(idx: Int) -> some View {
         VStack(spacing: 10) {
             // Font picker
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(Self.availableFonts, id: \.name) { font in
                         let isActive = overlays[idx].fontName == font.name
@@ -498,7 +498,7 @@ struct ShareImageEditorView: View {
                 }
 
                 // Colour
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView(.horizontal) {
                     HStack(spacing: 6) {
                         ForEach(Self.presetColors, id: \.self) { hex in
                             Button {
@@ -534,27 +534,6 @@ struct ShareImageEditorView: View {
 
     private var stylePanel: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Quick toggles
-            Toggle(isOn: Binding(
-                get: { options.showBadge },
-                set: { options.showBadge = $0; regeneratePreview() }
-            )) {
-                Label("App Badge", systemImage: "tag.fill")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white)
-            }
-            .tint(Color.accentColor)
-
-            Toggle(isOn: Binding(
-                get: { options.showBottomBar },
-                set: { options.showBottomBar = $0; regeneratePreview() }
-            )) {
-                Label("Bottom Bar", systemImage: "rectangle.bottomhalf.filled")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white)
-            }
-            .tint(Color.accentColor)
-
             Toggle(isOn: Binding(
                 get: { options.showDate },
                 set: { options.showDate = $0; regeneratePreview() }
@@ -635,14 +614,18 @@ struct ShareImageEditorView: View {
         opts.backgroundStyle = .custom
         opts.customBackground = buildCustomBG()
         opts.textOverlays = overlays
+        
         // Snapshot Show managed objects on the main thread (safe).
         let snapshots = shows.map { ShowSnapshot(from: $0) }
         let name = performerName.isEmpty ? "My Shows" : performerName
-        renderTask = Task.detached(priority: .userInitiated) {
+        
+        renderTask = Task { @MainActor in
+            let img = await Task.detached(priority: .userInitiated) {
+                ShareImageGenerator.generate(snapshots: snapshots, performerName: name, options: opts)
+            }.value
+            
             guard !Task.isCancelled else { return }
-            let img = ShareImageGenerator.generate(snapshots: snapshots, performerName: name, options: opts)
-            guard !Task.isCancelled else { return }
-            await MainActor.run { cachedImage = img }
+            cachedImage = img
         }
     }
 

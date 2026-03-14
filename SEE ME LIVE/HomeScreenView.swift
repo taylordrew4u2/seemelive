@@ -37,6 +37,8 @@ struct HomeScreenView: View {
     @State private var showToast = false
     @State private var isPresentingShareSheet = false
     @State private var headerAppeared = false
+    @State private var calendarMonth: Date = Date()
+    @State private var selectedCalendarDate: Date?
 
     private let userID = UserIdentityService.shared.userID
 
@@ -45,7 +47,7 @@ struct HomeScreenView: View {
             ZStack(alignment: .bottom) {
                 Color("AppBackground").ignoresSafeArea()
 
-                ScrollView(showsIndicators: false) {
+                ScrollView {
                     VStack(spacing: 0) {
 
                         // ── Hero Header ──
@@ -66,13 +68,14 @@ struct HomeScreenView: View {
                             .padding(.horizontal, 20)
                             .padding(.bottom, 32)
 
+                        // ── Calendar ──
+                        calendarSection
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 32)
+
                         // ── Upcoming Shows ──
-                        if upcomingShows.count > 1 {
+                        if upcomingShows.count > 0 {
                             upcomingSection
-                                .padding(.horizontal, 20)
-                                .padding(.bottom, 32)
-                        } else if upcomingShows.isEmpty {
-                            emptyState
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, 32)
                         }
@@ -84,9 +87,17 @@ struct HomeScreenView: View {
                                 .padding(.bottom, 32)
                         }
 
+                        // ── Empty State ──
+                        if allShows.isEmpty {
+                            emptyState
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 32)
+                        }
+
                         Spacer(minLength: 100)
                     }
                 }
+                .scrollIndicators(.hidden)
 
                 // ── Floating Action Button ──
                 addButton
@@ -276,13 +287,227 @@ struct HomeScreenView: View {
             }
 
             QuickActionButton(
-                icon: "square.and.arrow.up",
-                label: "Share",
+                icon: "doc.richtext",
+                label: "Create Flyer",
                 tint: .purple
             ) {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 isPresentingShareSheet = true
             }
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Calendar Section
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var calendarSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("CALENDAR")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+                .tracking(1)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                // Month navigation
+                HStack {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            calendarMonth = Calendar.current.date(byAdding: .month, value: -1, to: calendarMonth) ?? calendarMonth
+                        }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                    }
+
+                    Spacer()
+
+                    Text(monthYearString(from: calendarMonth))
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            calendarMonth = Calendar.current.date(byAdding: .month, value: 1, to: calendarMonth) ?? calendarMonth
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                // Weekday headers
+                let weekdays = ["S", "M", "T", "W", "T", "F", "S"]
+                HStack(spacing: 0) {
+                    ForEach(weekdays, id: \.self) { day in
+                        Text(day)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 6)
+
+                // Day grid
+                let days = calendarDays(for: calendarMonth)
+                let showDates = showDateSet()
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 4) {
+                    ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+                        if let day = day {
+                            let hasShow = showDates.contains(calendarDayKey(day))
+                            let isToday = Calendar.current.isDateInToday(day)
+                            let isSelected = selectedCalendarDate.map { Calendar.current.isDate($0, inSameDayAs: day) } ?? false
+
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    if isSelected {
+                                        selectedCalendarDate = nil
+                                    } else {
+                                        selectedCalendarDate = day
+                                    }
+                                }
+                            } label: {
+                                VStack(spacing: 3) {
+                                    Text("\(Calendar.current.component(.day, from: day))")
+                                        .font(.system(size: 15, weight: isToday ? .bold : .regular))
+                                        .foregroundStyle(
+                                            isSelected ? .white :
+                                            isToday ? Color.accentColor :
+                                            .primary
+                                        )
+
+                                    Circle()
+                                        .fill(hasShow ? Color.accentColor : Color.clear)
+                                        .frame(width: 5, height: 5)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 40)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(isSelected ? Color.accentColor : Color.clear)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Color.clear
+                                .frame(height: 40)
+                        }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 12)
+
+                // Shows on selected date
+                if let selected = selectedCalendarDate {
+                    let dayShows = showsOn(date: selected)
+                    if !dayShows.isEmpty {
+                        Divider()
+                            .padding(.horizontal, 12)
+
+                        VStack(spacing: 0) {
+                            ForEach(Array(dayShows.enumerated()), id: \.element.objectID) { idx, show in
+                                NavigationLink {
+                                    ShowDetailView(show: show) {
+                                        showToEdit = show
+                                        isPresentingEditor = true
+                                    }
+                                } label: {
+                                    ShowRow(show: show)
+                                }
+                                .buttonStyle(RowPress())
+
+                                if idx < dayShows.count - 1 {
+                                    Divider()
+                                        .padding(.leading, 68)
+                                }
+                            }
+                        }
+                    } else {
+                        HStack {
+                            Spacer()
+                            Text("No shows on this date")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.tertiary)
+                                .padding(.vertical, 14)
+                            Spacer()
+                        }
+                    }
+                }
+            }
+            .background(Color("CardBackground"))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.06),
+                    radius: 12, x: 0, y: 4)
+        }
+    }
+
+    // MARK: - Calendar Helpers
+
+    private func monthYearString(from date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f.string(from: date)
+    }
+
+    private func calendarDays(for month: Date) -> [Date?] {
+        let cal = Calendar.current
+        guard let range = cal.range(of: .day, in: .month, for: month),
+              let firstOfMonth = cal.date(from: cal.dateComponents([.year, .month], from: month))
+        else { return [] }
+
+        let firstWeekday = cal.component(.weekday, from: firstOfMonth) // 1 = Sunday
+        let leadingBlanks = firstWeekday - 1
+
+        var days: [Date?] = Array(repeating: nil, count: leadingBlanks)
+
+        for day in range {
+            if let date = cal.date(byAdding: .day, value: day - 1, to: firstOfMonth) {
+                days.append(date)
+            }
+        }
+
+        // Pad trailing to fill the last row
+        while days.count % 7 != 0 {
+            days.append(nil)
+        }
+
+        return days
+    }
+
+    private func calendarDayKey(_ date: Date) -> String {
+        let cal = Calendar.current
+        let y = cal.component(.year, from: date)
+        let m = cal.component(.month, from: date)
+        let d = cal.component(.day, from: date)
+        return "\(y)-\(m)-\(d)"
+    }
+
+    private func showDateSet() -> Set<String> {
+        var set = Set<String>()
+        for show in allShows {
+            if let d = show.date {
+                set.insert(calendarDayKey(d))
+            }
+        }
+        return set
+    }
+
+    private func showsOn(date: Date) -> [Show] {
+        allShows.filter { show in
+            guard let d = show.date else { return false }
+            return Calendar.current.isDate(d, inSameDayAs: date)
         }
     }
 
@@ -299,8 +524,7 @@ struct HomeScreenView: View {
                 .padding(.leading, 4)
 
             VStack(spacing: 0) {
-                let remaining = Array(upcomingShows.dropFirst())
-                ForEach(Array(remaining.enumerated()), id: \.element.objectID) { idx, show in
+                ForEach(Array(upcomingShows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {
                             showToEdit = show
@@ -311,7 +535,45 @@ struct HomeScreenView: View {
                     }
                     .buttonStyle(RowPress())
 
-                    if idx < remaining.count - 1 {
+                    if idx < upcomingShows.count - 1 {
+                        Divider()
+                            .padding(.leading, 68)
+                    }
+                }
+            }
+            .background(Color("CardBackground"))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.06),
+                    radius: 12, x: 0, y: 4)
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Past Shows Section
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var pastShowsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("PAST SHOWS")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+                .tracking(1)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                ForEach(Array(pastShows.enumerated()), id: \.element.objectID) { idx, show in
+                    NavigationLink {
+                        ShowDetailView(show: show) {
+                            showToEdit = show
+                            isPresentingEditor = true
+                        }
+                    } label: {
+                        ShowRow(show: show)
+                            .opacity(0.7)
+                    }
+                    .buttonStyle(RowPress())
+
+                    if idx < pastShows.count - 1 {
                         Divider()
                             .padding(.leading, 68)
                     }
@@ -372,44 +634,6 @@ struct HomeScreenView: View {
             .buttonStyle(CardPress())
 
             Spacer(minLength: 60)
-        }
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Past Shows Section
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    private var pastShowsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("PAST SHOWS")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-                .tracking(1)
-                .padding(.leading, 4)
-
-            VStack(spacing: 0) {
-                ForEach(Array(pastShows.enumerated()), id: \.element.objectID) { idx, show in
-                    NavigationLink {
-                        ShowDetailView(show: show) {
-                            showToEdit = show
-                            isPresentingEditor = true
-                        }
-                    } label: {
-                        ShowRow(show: show)
-                            .opacity(0.7)
-                    }
-                    .buttonStyle(RowPress())
-
-                    if idx < pastShows.count - 1 {
-                        Divider()
-                            .padding(.leading, 68)
-                    }
-                }
-            }
-            .background(Color("CardBackground"))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.06),
-                    radius: 12, x: 0, y: 4)
         }
     }
 
@@ -646,7 +870,7 @@ private struct AllShowsListView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
+        ScrollView {
             VStack(spacing: 0) {
                 ForEach(Array(shows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
@@ -672,6 +896,7 @@ private struct AllShowsListView: View {
             .padding(.top, 16)
             .padding(.bottom, 44)
         }
+        .scrollIndicators(.hidden)
         .background(Color("AppBackground").ignoresSafeArea())
         .navigationTitle("All Shows")
         .navigationBarTitleDisplayMode(.inline)

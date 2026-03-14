@@ -73,6 +73,7 @@ struct ShowEditorView: View {
             ScrollView {
                 content
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Color("AppBackground"))
             .navigationTitle(showToEdit == nil ? "Add New Gig" : "Edit Gig")
             .navigationBarTitleDisplayMode(.inline)
@@ -153,9 +154,10 @@ struct ShowEditorView: View {
 
             saveButton
                 .padding(.top, 4)
-                .padding(.bottom, 20)
+                .padding(.bottom, 40)
         }
         .padding(.horizontal, 16)
+        .safeAreaPadding(.bottom, 20)
     }
 
     // Extracted form fields
