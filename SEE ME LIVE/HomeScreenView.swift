@@ -129,10 +129,10 @@ struct HomeScreenView: View {
                 ShareLinkSheetView(userID: userID, shows: Array(allShows), initialTab: 0)
             }
             .task {
-                await PublicCloudSyncService.shared.flushQueue(using: viewContext)
+                await performBackgroundSync()
             }
             .refreshable {
-                await PublicCloudSyncService.shared.flushQueue(using: viewContext)
+                await performBackgroundSync()
             }
             .onAppear {
                 withAnimation(.easeOut(duration: 0.6).delay(0.1)) {
@@ -167,6 +167,7 @@ struct HomeScreenView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(headerAppeared ? 1 : 0)
         .offset(y: headerAppeared ? 0 : 12)
+        .drawingGroup() // Optimize rendering of the header
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -268,6 +269,7 @@ struct HomeScreenView: View {
                     radius: 20, x: 0, y: 8)
         }
         .buttonStyle(CardPress())
+        .drawingGroup() // Optimize rendering of the card
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -349,7 +351,7 @@ struct HomeScreenView: View {
                 // Weekday headers
                 let weekdays = ["S", "M", "T", "W", "T", "F", "S"]
                 HStack(spacing: 0) {
-                    ForEach(weekdays, id: \.self) { day in
+                    ForEach(Array(weekdays.enumerated()), id: \.offset) { _, day in
                         Text(day)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.tertiary)
@@ -365,45 +367,22 @@ struct HomeScreenView: View {
 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 4) {
                     ForEach(Array(days.enumerated()), id: \.offset) { _, day in
-                        if let day = day {
-                            let hasShow = showDates.contains(calendarDayKey(day))
-                            let isToday = Calendar.current.isDateInToday(day)
-                            let isSelected = selectedCalendarDate.map { Calendar.current.isDate($0, inSameDayAs: day) } ?? false
-
-                            Button {
+                        CalendarDayCell(
+                            day: day,
+                            hasShow: day != nil && showDates.contains(calendarDayKey(day!)),
+                            isSelected: day != nil && selectedCalendarDate.map { Calendar.current.isDate($0, inSameDayAs: day!) } ?? false,
+                            onSelect: {
                                 withAnimation(.easeInOut(duration: 0.15)) {
-                                    if isSelected {
-                                        selectedCalendarDate = nil
-                                    } else {
-                                        selectedCalendarDate = day
+                                    if let d = day {
+                                        if selectedCalendarDate.map({ Calendar.current.isDate($0, inSameDayAs: d) }) ?? false {
+                                            selectedCalendarDate = nil
+                                        } else {
+                                            selectedCalendarDate = d
+                                        }
                                     }
                                 }
-                            } label: {
-                                VStack(spacing: 3) {
-                                    Text("\(Calendar.current.component(.day, from: day))")
-                                        .font(.system(size: 15, weight: isToday ? .bold : .regular))
-                                        .foregroundStyle(
-                                            isSelected ? .white :
-                                            isToday ? Color.accentColor :
-                                            .primary
-                                        )
-
-                                    Circle()
-                                        .fill(hasShow ? Color.accentColor : Color.clear)
-                                        .frame(width: 5, height: 5)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 40)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(isSelected ? Color.accentColor : Color.clear)
-                                )
                             }
-                            .buttonStyle(.plain)
-                        } else {
-                            Color.clear
-                                .frame(height: 40)
-                        }
+                        )
                     }
                 }
                 .padding(.horizontal, 8)
@@ -456,9 +435,7 @@ struct HomeScreenView: View {
     // MARK: - Calendar Helpers
 
     private func monthYearString(from date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "MMMM yyyy"
-        return f.string(from: date)
+        Self.monthYearFormatter.string(from: date)
     }
 
     private func calendarDays(for month: Date) -> [Date?] {
@@ -512,6 +489,40 @@ struct HomeScreenView: View {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Formatters
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private static let monthYearFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "d"
+        return f
+    }()
+
+    private static let monthAbbrevFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM"
+        return f
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f
+    }()
+
+    private static let fullDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMMM d"
+        return f
+    }()
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // MARK: - Upcoming Section
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -523,7 +534,7 @@ struct HomeScreenView: View {
                 .tracking(1)
                 .padding(.leading, 4)
 
-            VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 ForEach(Array(upcomingShows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {
@@ -560,7 +571,7 @@ struct HomeScreenView: View {
                 .tracking(1)
                 .padding(.leading, 4)
 
-            VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 ForEach(Array(pastShows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {
@@ -696,21 +707,19 @@ struct HomeScreenView: View {
     }
 
     private var formattedDate: String {
-        let f = DateFormatter()
-        f.dateFormat = "EEEE, MMMM d"
-        return f.string(from: Date())
+        Self.fullDateFormatter.string(from: Date())
     }
 
     private func monthAbbrev(from date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "MMM"; return f.string(from: date)
+        Self.monthAbbrevFormatter.string(from: date)
     }
 
     private func dayNumber(from date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "d"; return f.string(from: date)
+        Self.dayFormatter.string(from: date)
     }
 
     private func timeString(from date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
+        Self.timeFormatter.string(from: date)
     }
 
     private func showToastBriefly(_ message: String) {
@@ -722,6 +731,54 @@ struct HomeScreenView: View {
             withAnimation(.easeOut(duration: 0.3)) {
                 showToast = false
             }
+        }
+    }
+
+    private func performBackgroundSync() async {
+        let bgContext = PersistenceController.shared.container.newBackgroundContext()
+        await PublicCloudSyncService.shared.flushQueue(using: bgContext)
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MARK: - Calendar Day Cell
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+private struct CalendarDayCell: View {
+    let day: Date?
+    let hasShow: Bool
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        if let day = day {
+            let isToday = Calendar.current.isDateInToday(day)
+
+            Button(action: onSelect) {
+                VStack(spacing: 3) {
+                    Text("\(Calendar.current.component(.day, from: day))")
+                        .font(.system(size: 15, weight: isToday ? .bold : .regular))
+                        .foregroundStyle(
+                            isSelected ? .white :
+                            isToday ? Color.accentColor :
+                            .primary
+                        )
+
+                    Circle()
+                        .fill(hasShow ? Color.accentColor : Color.clear)
+                        .frame(width: 5, height: 5)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isSelected ? Color.accentColor : Color.clear)
+                )
+            }
+            .buttonStyle(.plain)
+        } else {
+            Color.clear
+                .frame(height: 40)
         }
     }
 }
@@ -784,14 +841,24 @@ private struct ShowRow: View {
     }
 
     private func monthAbbrev(from date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "MMM"; return f.string(from: date)
+        ShowRow.monthAbbrevFormatter.string(from: date)
     }
     private func dayNumber(from date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "d"; return f.string(from: date)
+        ShowRow.dayFormatter.string(from: date)
     }
     private func timeString(from date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
+        ShowRow.timeFormatter.string(from: date)
     }
+
+    private static let monthAbbrevFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMM"; return f
+    }()
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "d"; return f
+    }()
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "h:mm a"; return f
+    }()
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -871,7 +938,7 @@ private struct AllShowsListView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 ForEach(Array(shows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {

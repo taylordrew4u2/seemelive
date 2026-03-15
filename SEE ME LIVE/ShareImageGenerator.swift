@@ -662,6 +662,72 @@ enum ShareImageGenerator {
         NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: ps])
             .draw(in: CGRect(x: origin.x, y: origin.y, width: drawWidth, height: drawHeight))
     }
+
+    private func drawShows(in context: CGContext, canvas: CGSize, snapshots: [ShowSnapshot], options: ExportOptions) {
+        let maxRows = options.maxRows ?? 10
+        let visible = Array(snapshots.prefix(maxRows))
+        guard !visible.isEmpty else { return }
+
+        // Layout constants (relative to canvas width)
+        let margin = canvas.width * 0.08
+        let spacing = canvas.width * (0.02 * (options.showPadding / 10.0))
+        let rowHeight = canvas.height * (options.sizePreset.isVertical ? 0.08 : 0.12)
+
+        var currentY: CGFloat = canvas.height * 0.25
+
+        for show in visible {
+            drawShowRow(show, in: context, width: canvas.width - (margin * 2), height: rowHeight, x: margin, y: currentY, options: options)
+            currentY += rowHeight + spacing
+        }
+    }
+
+    private func drawShowRow(_ show: ShowSnapshot, in context: CGContext, width: CGFloat, height: CGFloat, x: CGFloat, y: CGFloat, options: ExportOptions) {
+        let textColor = UIColor(hex: options.textColorHex ?? "#FFFFFF") ?? .white
+        let venueColor = textColor.withAlphaComponent(0.7)
+        let dateColor = textColor.withAlphaComponent(0.6)
+
+        // Title
+        let titleFont = UIFont.systemFont(ofSize: height * 0.28, weight: .bold)
+        let titleAttr: [NSAttributedString.Key: Any] = [.font: titleFont, .foregroundColor: textColor]
+        show.title.draw(at: CGPoint(x: x, y: y), withAttributes: titleAttr)
+
+        var subY = y + (height * 0.35)
+
+        // Venue
+        if options.showVenue && !show.venue.isEmpty {
+            let venueFont = UIFont.systemFont(ofSize: height * 0.18, weight: .medium)
+            let venueAttr: [NSAttributedString.Key: Any] = [.font: venueFont, .foregroundColor: venueColor]
+            show.venue.draw(at: CGPoint(x: x, y: subY), withAttributes: venueAttr)
+            subY += height * 0.22
+        }
+
+        // Date & Time
+        if options.showDate {
+            let dateStr = formattedDate(show.date)
+            let dateFont = UIFont.monospacedDigitSystemFont(ofSize: height * 0.16, weight: .semibold)
+            let dateAttr: [NSAttributedString.Key: Any] = [.font: dateFont, .foregroundColor: dateColor]
+            dateStr.draw(at: CGPoint(x: x, y: subY), withAttributes: dateAttr)
+        }
+    }
+
+    // MARK: - Date Helpers
+
+    private func formattedDate(_ date: Date) -> String {
+        return "\(Self.dayFormatter.string(from: date)) · \(Self.timeFormatter.string(from: date))"
+    }
+
+    // MARK: - Shared Formatters
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE, MMM d"
+        return f
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f
+    }()
 }
 
 // MARK: - UIColor hex init
@@ -678,4 +744,3 @@ private extension UIColor {
                   alpha: 1)
     }
 }
- 

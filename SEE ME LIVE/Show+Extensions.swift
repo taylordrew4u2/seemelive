@@ -28,11 +28,7 @@ extension Show {
     /// Formatted date string like "Sat, Mar 15 · 8:00 PM"
     var dateFormatted: String {
         let d = dateOrNow
-        let dayFormatter = DateFormatter()
-        dayFormatter.dateFormat = "EEE, MMM d"
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mm a"
-        return "\(dayFormatter.string(from: d)) · \(timeFormatter.string(from: d))"
+        return "\(Self.dayFormatter.string(from: d)) · \(Self.timeFormatter.string(from: d))"
     }
 
     /// Short relative date label, e.g. "Tomorrow", "In 3 days"
@@ -61,4 +57,17 @@ extension Show {
     var hasTicketLink: Bool {
         return normalizedTicketURL != nil
     }
+
+    // MARK: - Shared Formatters
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE, MMM d"
+        return f
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f
+    }()
 }

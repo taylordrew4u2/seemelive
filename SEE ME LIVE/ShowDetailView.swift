@@ -21,6 +21,7 @@ struct ShowDetailView: View {
     @State private var showDeleteConfirmation = false
     @State private var showFullScreenImage = false
     @State private var appeared = false
+    @State private var headerUIImage: UIImage? = nil
 
     var body: some View {
         ScrollView {
@@ -152,6 +153,14 @@ struct ShowDetailView: View {
             fullScreenImageViewer
         }
         .onAppear {
+            if let data = show.flyerImageData {
+                Task.detached(priority: .userInitiated) {
+                    let uiImage = UIImage(data: data)
+                    await MainActor.run {
+                        self.headerUIImage = uiImage
+                    }
+                }
+            }
             withAnimation(.easeOut(duration: 0.4)) {
                 appeared = true
             }
@@ -162,7 +171,7 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private var headerImage: some View {
-        if let data = show.flyerImageData, let uiImage = UIImage(data: data) {
+        if let uiImage = headerUIImage {
             Button {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 showFullScreenImage = true
@@ -197,6 +206,10 @@ struct ShowDetailView: View {
                 }
             }
             .buttonStyle(DetailCardPress())
+        } else if show.flyerImageData != nil {
+            // Loading state or placeholder while decompressing
+            Color.gray.opacity(0.1)
+                .frame(height: 300)
         } else {
             // Branded placeholder
             ZStack {

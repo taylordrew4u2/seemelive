@@ -44,9 +44,9 @@ struct SEE_ME_LIVEApp: App {
                 for: UIApplication.willEnterForegroundNotification)) { _ in
                 // Retry any pending public CloudKit operations when
                 // the app comes back to the foreground.
-                let ctx = persistenceController.container.viewContext
-                Task {
-                    await PublicCloudSyncService.shared.flushQueue(using: ctx)
+                Task.detached {
+                    let bgContext = persistenceController.container.newBackgroundContext()
+                    await PublicCloudSyncService.shared.flushQueue(using: bgContext)
                 }
             }
         }

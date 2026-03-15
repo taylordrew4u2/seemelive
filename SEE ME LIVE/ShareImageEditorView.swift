@@ -282,7 +282,7 @@ struct ShareImageEditorView: View {
                 }
 
             case .gradient:
-                ScrollView(.horizontal) {
+                ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(Self.gradientPresets, id: \.label) { preset in
                             Button {
@@ -433,7 +433,7 @@ struct ShareImageEditorView: View {
     private func selectedOverlayControls(idx: Int) -> some View {
         VStack(spacing: 10) {
             // Font picker
-            ScrollView(.horizontal) {
+            ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(Self.availableFonts, id: \.name) { font in
                         let isActive = overlays[idx].fontName == font.name
@@ -498,7 +498,7 @@ struct ShareImageEditorView: View {
                 }
 
                 // Colour
-                ScrollView(.horizontal) {
+                ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(Self.presetColors, id: \.self) { hex in
                             Button {
@@ -641,11 +641,19 @@ struct ShareImageEditorView: View {
     private func loadBGPhoto(from item: PhotosPickerItem?) async {
         guard let item else { return }
         if let data = try? await item.loadTransferable(type: Data.self) {
+            // Process image off main thread
+            let thumb = await Task.detached(priority: .userInitiated) {
+                if let img = UIImage(data: data) {
+                    // Create a smaller thumbnail version for the editor UI
+                    return img.preparingThumbnail(of: CGSize(width: 300, height: 300))
+                }
+                return nil
+            }.value
+
             await MainActor.run {
                 bgPhotoData = data
-                if let img = UIImage(data: data) {
-                    bgPhotoThumb = img
-                }
+                bgPhotoThumb = thumb
+                regeneratePreview()
             }
         }
     }
