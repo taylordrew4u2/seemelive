@@ -6,7 +6,6 @@
 //
 
 import EventKit
-import UIKit
 
 // MARK: - Calendar Service
 /// Manages EventKit calendar events: create, update, and delete.

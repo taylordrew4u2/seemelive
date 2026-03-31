@@ -12,7 +12,8 @@ import Foundation
 /// This ID tags every show in the CloudKit public database so the public
 /// calendar page can filter by user.
 
-final class UserIdentityService: Sendable {
+@MainActor
+final class UserIdentityService {
     static let shared = UserIdentityService()
 
     private let key = "com.seemelive.userID"

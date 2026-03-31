@@ -729,9 +729,7 @@ enum ShareImageGenerator {
         let cardX = cardRect.minX
         let cardY = cardRect.minY
         let cardW = cardRect.width
-        let cardH = cardRect.height
         
-        let textX = cardX + innerPad
         let textW = max(1, cardW - innerPad * 2)
         var currentY = cardY + innerPad * 0.5
 

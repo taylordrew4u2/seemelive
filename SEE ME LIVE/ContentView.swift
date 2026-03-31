@@ -15,7 +15,6 @@ import UIKit
 
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @Environment(\.colorScheme) private var colorScheme
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \Show.date, ascending: true)],

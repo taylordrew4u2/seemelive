@@ -7,7 +7,6 @@
 
 import CloudKit
 import CoreData
-import UIKit
 
 // MARK: - Public Cloud Sync Service
 /// Syncs shows to the CloudKit **public** database so anyone can read them
@@ -25,8 +24,23 @@ final class PublicCloudSyncService: Sendable {
 
     private let publicDB = CKContainer.default().publicCloudDatabase
     private let recordType = "PublicShow"
+    private let deleteQueueKey = "com.seemelive.pendingPublicDeletes"
 
     private init() {}
+
+    // MARK: - Pending Delete Storage (MainActor-isolated)
+    
+    /// Read pending delete IDs from UserDefaults on the main actor.
+    @MainActor
+    private func getPendingDeleteIDs() -> [String] {
+        UserDefaults.standard.stringArray(forKey: deleteQueueKey) ?? []
+    }
+    
+    /// Write pending delete IDs to UserDefaults on the main actor.
+    @MainActor
+    private func setPendingDeleteIDs(_ ids: [String]) {
+        UserDefaults.standard.set(ids, forKey: deleteQueueKey)
+    }
 
     // MARK: - Save / Update
 
@@ -127,9 +141,9 @@ final class PublicCloudSyncService: Sendable {
     @MainActor
     func markForDelete(show: Show) {
         guard let recordID = show.publicRecordID else { return }
-        var queue = pendingDeleteIDs
+        var queue = getPendingDeleteIDs()
         queue.append(recordID)
-        pendingDeleteIDs = queue
+        setPendingDeleteIDs(queue)
     }
 
     /// Deletes a single public record by ID.
@@ -161,7 +175,8 @@ final class PublicCloudSyncService: Sendable {
         }
 
         // 2. Retry pending deletes stored in UserDefaults.
-        let ids = pendingDeleteIDs
+        // Access UserDefaults on MainActor to avoid concurrency issues.
+        let ids = await getPendingDeleteIDs()
         var failedIDs: [String] = []
         for id in ids {
             do {
@@ -171,15 +186,6 @@ final class PublicCloudSyncService: Sendable {
                 print("⚠️ Public CloudKit delete retry failed for \(id): \(error)")
             }
         }
-        pendingDeleteIDs = failedIDs
-    }
-
-    // MARK: - Pending Delete Storage (UserDefaults)
-
-    private let deleteQueueKey = "com.seemelive.pendingPublicDeletes"
-
-    private var pendingDeleteIDs: [String] {
-        get { UserDefaults.standard.stringArray(forKey: deleteQueueKey) ?? [] }
-        set { UserDefaults.standard.set(newValue, forKey: deleteQueueKey) }
+        await setPendingDeleteIDs(failedIDs)
     }
 }

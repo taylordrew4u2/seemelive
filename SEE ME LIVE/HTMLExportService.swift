@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import UIKit
 
 // MARK: - Calendar Display Options
 /// Controls how the exported / shared HTML calendar looks.

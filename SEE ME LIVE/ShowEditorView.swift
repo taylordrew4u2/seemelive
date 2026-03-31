@@ -16,7 +16,6 @@ import CoreData
 struct ShowEditorView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
 
     let showToEdit: Show?
 

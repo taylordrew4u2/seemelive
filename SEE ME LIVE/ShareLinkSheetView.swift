@@ -38,8 +38,7 @@ struct ShareLinkSheetView: View {
             .fullScreenCover(isPresented: $showEditor) {
                 ShareImageEditorView(
                     shows: shows,
-                    performerName: performerName.isEmpty ? "My Shows" : performerName,
-                    options: $options
+                    performerName: performerName.isEmpty ? "My Shows" : performerName
                 )
             }
             .onChange(of: showEditor) { _, isShowing in

@@ -178,7 +178,6 @@ struct ShareImageEditorView: View {
             let availH = geo.size.height
             let fitW = min(availW, availH * aspect)
             let fitH = fitW / aspect
-            let fitH = fitW / aspect
 
             ZStack {
                 Image(uiImage: cachedImage)
@@ -852,3 +851,4 @@ private struct ScaleButtonStyle: ButtonStyle {
         performerName: "Taylor Drew"
     )
 }
+

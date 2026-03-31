@@ -12,6 +12,7 @@ import Foundation
 /// and lazily generates a short link (via TinyURL) that is cached
 /// permanently in UserDefaults — so it is created once and never changes.
 
+@MainActor
 enum ShareLinkService {
 
     // The real host (GitHub Pages serves the fan page).
