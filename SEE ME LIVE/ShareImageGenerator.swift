@@ -164,6 +164,35 @@ enum DateFormatStyle: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Layout Template
+
+enum LayoutTemplate: String, CaseIterable, Identifiable {
+    case classic    = "Classic"      // Date badge left, text right
+    case minimal    = "Minimal"      // Simple text list, no badges
+    case bold       = "Bold"         // Large date on top, text below
+    case compact    = "Compact"      // Small cards, more shows visible
+    
+    var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .classic: return "rectangle.split.2x1"
+        case .minimal: return "list.bullet"
+        case .bold:    return "calendar"
+        case .compact: return "square.grid.3x3"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .classic: return "Date badge with show details"
+        case .minimal: return "Clean text-only layout"
+        case .bold:    return "Large prominent dates"
+        case .compact: return "Fit more shows"
+        }
+    }
+}
+
 // MARK: - Export Options
 
 struct ExportOptions {
@@ -171,9 +200,15 @@ struct ExportOptions {
     var backgroundStyle: BackgroundStyle  = .gradient
     var accentHex:       String           = "#CC7057"
     var textColorHex:    String?          = nil       // nil = auto (white/dark based on background)
+    
+    // Content toggles
     var showVenue:       Bool             = true
     var showDate:        Bool             = true
-
+    var showTime:        Bool             = true
+    var showHeader:      Bool             = false     // No header by default
+    
+    // Layout
+    var layoutTemplate:  LayoutTemplate   = .classic
     var cardStyle:       CardStyle        = .rounded
     var columns:         Int              = 0        // 0 = auto
     var cardOpacity:     Double           = 1.0      // 0…1
@@ -181,16 +216,16 @@ struct ExportOptions {
     var fontStyle:       FontStyle        = .system
 
     // Customizable text
-    var subtitleText:    String           = "Upcoming Shows"
-
-    // Date formatting
-    var dateFormatStyle: DateFormatStyle  = .short
+    var subtitleText:    String           = ""
 
     // Scrim (background overlay darkness)
     var scrimIntensity:  Double           = 0.55     // 0…1
 
     // Grid gap multiplier
     var gridGap:         Double           = 1.0      // 0.5…2.0
+
+    // Text scale multiplier
+    var textScale:       Double           = 1.0      // 0.7…1.5
 
     // Padding inside cards
     var showPadding:     Double           = 1.0      // 0.5…2.0
@@ -392,15 +427,17 @@ enum ShareImageGenerator {
 
         // 4. Layout metrics
         let pad = size.width * 0.05
-        let headerH: CGFloat = options.headerStyle == .minimal ? size.width * 0.10 : size.width * 0.14
+        let headerH: CGFloat = options.showHeader ? (options.headerStyle == .minimal ? size.width * 0.10 : size.width * 0.14) : 0
         let gridTop = pad + headerH
         let gridBottom = size.height - pad * 0.5
         let gridH = gridBottom - gridTop
         let gridW = size.width - pad * 2
 
-        // 5. Header (just performer name, no badge)
-        drawHeader(ctx: ctx, size: size, pad: pad, performerName: performerName,
-                   options: options, accent: accent, textColor: textColor, subColor: subColor)
+        // 5. Header (only if enabled)
+        if options.showHeader {
+            drawHeader(ctx: ctx, size: size, pad: pad, performerName: performerName,
+                       options: options, accent: accent, textColor: textColor, subColor: subColor)
+        }
 
         // 6. Card grid — user-defined or auto columns
         let cols: Int
@@ -495,56 +532,295 @@ enum ShareImageGenerator {
             return
         }
 
-        let fontSt = options.fontStyle
-        let shows = options.maxRows > 0 ? Array(allShows.prefix(options.maxRows)) : allShows
-        let count = shows.count
-
-        // List layout - calculate row height based on content
-        let rowGap = gridSize.width * 0.015 * options.showPadding
-        let availableHeight = gridSize.height - (rowGap * CGFloat(max(count - 1, 0)))
-        let rowHeight = max(1, min(availableHeight / CGFloat(count), gridSize.width * 0.12))
+        let fontSt  = options.fontStyle
+        let template = options.layoutTemplate
+        let shows   = options.maxRows > 0 ? Array(allShows.prefix(options.maxRows * cols)) : allShows
+        let count   = shows.count
         
-        // Scale fonts relative to row size
-        let scale = max(0.1, min(gridSize.width / 800, rowHeight / 80))
-        let titleSz  = max(14, 22 * scale)
-        let detailSz = max(10, 14 * scale)
+        // Adjust columns for compact template
+        let safeCols: Int
+        switch template {
+        case .compact:
+            safeCols = max(1, cols + 1)  // More columns for compact
+        default:
+            safeCols = max(1, cols)
+        }
+
+        // Gap between cards
+        let gapMultiplier: CGFloat = template == .compact ? 0.5 : 1.0
+        let gap = gridSize.width * 0.025 * options.gridGap * gapMultiplier
+
+        // Card width from column count
+        let cardW = (gridSize.width - gap * CGFloat(safeCols - 1)) / CGFloat(safeCols)
+
+        // Determine row count and card height
+        let rows = Int(ceil(Double(count) / Double(safeCols)))
+        let rowGap = gap
+        let cardH: CGFloat
+        if rows > 0 {
+            let totalRowGaps = rowGap * CGFloat(max(rows - 1, 0))
+            cardH = max(1, (gridSize.height - totalRowGaps) / CGFloat(rows))
+        } else {
+            cardH = gridSize.height
+        }
+
+        // Fonts scaled to card size - adjust for template
+        let ts = options.textScale
+        let compactScale: CGFloat = template == .compact ? 0.85 : 1.0
+        let innerPad  = cardW * 0.07 * options.showPadding
+        let titleSz   = max(10, cardH * 0.22 * ts * compactScale)
+        let detailSz  = max(8,  cardH * 0.15 * ts * compactScale)
+        let dateSz    = max(8,  cardH * 0.13 * ts * compactScale)
+        let monthSz   = max(7,  cardH * 0.11 * ts * compactScale)
 
         for (i, show) in shows.enumerated() {
-            let rowY = gridOrigin.y + CGFloat(i) * (rowHeight + rowGap)
-            let rowRect = CGRect(x: gridOrigin.x, y: rowY, width: gridSize.width, height: rowHeight)
+            let col = i % safeCols
+            let row = i / safeCols
 
-            let contentX = gridOrigin.x + rowHeight * 0.15
-            let contentW = max(1, gridSize.width - rowHeight * 0.3)
+            let cardX = gridOrigin.x + CGFloat(col) * (cardW + gap)
+            let cardY = gridOrigin.y + CGFloat(row)  * (cardH + rowGap)
+            let cardRect = CGRect(x: cardX, y: cardY, width: cardW, height: cardH)
 
-            // Title (show name) - prominent
-            let titleFont = resolvedFont(size: titleSz, weight: .semibold, style: fontSt)
-            let titleY = rowY + rowHeight * 0.2
-            drawText(show.titleOrEmpty, at: CGPoint(x: contentX, y: titleY),
-                     font: titleFont, color: textColor,
-                     maxWidth: contentW, canvasHeight: rowRect.maxY)
+            switch template {
+            case .classic:
+                // Date badge left, text right
+                drawClassicCard(ctx: ctx, show: show, cardRect: cardRect, innerPad: innerPad,
+                               titleSz: titleSz, detailSz: detailSz, dateSz: dateSz, monthSz: monthSz,
+                               fontSt: fontSt, accent: accent, textColor: textColor, subColor: subColor, options: options)
+                
+            case .minimal:
+                // Simple text list, no date badge
+                drawMinimalCard(ctx: ctx, show: show, cardRect: cardRect, innerPad: innerPad,
+                               titleSz: titleSz, detailSz: detailSz,
+                               fontSt: fontSt, textColor: textColor, subColor: subColor, options: options)
+                
+            case .bold:
+                // Large date on top, text below
+                drawBoldCard(ctx: ctx, show: show, cardRect: cardRect, innerPad: innerPad,
+                            titleSz: titleSz, detailSz: detailSz, dateSz: dateSz, monthSz: monthSz,
+                            fontSt: fontSt, accent: accent, textColor: textColor, subColor: subColor, options: options)
+                
+            case .compact:
+                // Small cards, tight layout
+                drawCompactCard(ctx: ctx, show: show, cardRect: cardRect, innerPad: innerPad,
+                               titleSz: titleSz, detailSz: detailSz, monthSz: monthSz,
+                               fontSt: fontSt, accent: accent, textColor: textColor, subColor: subColor, options: options)
+            }
+        }
+    }
 
-            // Venue and Date on same line or second line
-            let detailY = titleY + titleSz * 1.3
-            let detailFont = resolvedFont(size: detailSz, weight: .regular, style: fontSt)
-            
-            var detailText = ""
-            if !show.venueOrEmpty.isEmpty {
-                detailText = show.venueOrEmpty
-            }
-            if options.showDate {
-                let dateStr = show.formattedDate(style: options.dateFormatStyle)
-                if detailText.isEmpty {
-                    detailText = dateStr
-                } else {
-                    detailText += "  ·  " + dateStr
-                }
-            }
-            
-            if !detailText.isEmpty {
-                drawText(detailText, at: CGPoint(x: contentX, y: detailY),
-                         font: detailFont, color: subColor,
-                         maxWidth: contentW, canvasHeight: rowRect.maxY)
-            }
+    // MARK: - Card Templates
+
+    /// Classic: Date badge on left, show details on right
+    private static func drawClassicCard(ctx: CGContext, show: ShowSnapshot, cardRect: CGRect,
+                                         innerPad: CGFloat, titleSz: CGFloat, detailSz: CGFloat,
+                                         dateSz: CGFloat, monthSz: CGFloat, fontSt: FontStyle,
+                                         accent: UIColor, textColor: UIColor, subColor: UIColor,
+                                         options: ExportOptions) {
+        let cardX = cardRect.minX
+        let cardY = cardRect.minY
+        let cardW = cardRect.width
+        let cardH = cardRect.height
+        
+        // Date badge (left strip)
+        let badgeW = cardW * 0.22
+        let badgeX = cardX + innerPad * 0.5
+        let badgeY = cardY + cardH * 0.15
+
+        if options.showDate {
+            // Month
+            let monthFont = resolvedFont(size: monthSz, weight: .bold, style: fontSt)
+            let monthAttrs: [NSAttributedString.Key: Any] = [.font: monthFont, .foregroundColor: accent]
+            let monthStr = show.monthAbbrev as NSString
+            let monthSize = monthStr.size(withAttributes: monthAttrs)
+            UIGraphicsPushContext(ctx)
+            monthStr.draw(at: CGPoint(x: badgeX + (badgeW - monthSize.width) / 2, y: badgeY), withAttributes: monthAttrs)
+            UIGraphicsPopContext()
+
+            // Day number
+            let dayFont = resolvedFont(size: dateSz * 1.5, weight: .heavy, style: fontSt)
+            let dayAttrs: [NSAttributedString.Key: Any] = [.font: dayFont, .foregroundColor: textColor]
+            let dayStr = show.dayNumber as NSString
+            let daySize = dayStr.size(withAttributes: dayAttrs)
+            UIGraphicsPushContext(ctx)
+            dayStr.draw(at: CGPoint(x: badgeX + (badgeW - daySize.width) / 2, y: badgeY + monthSize.height + 1), withAttributes: dayAttrs)
+            UIGraphicsPopContext()
+        }
+
+        // Text content (right of date badge)
+        let textX = options.showDate ? cardX + badgeW + innerPad : cardX + innerPad
+        let textW = options.showDate ? max(1, cardW - badgeW - innerPad * 1.5) : max(1, cardW - innerPad * 2)
+
+        // Title
+        let titleFont = resolvedFont(size: titleSz, weight: .bold, style: fontSt)
+        let titleY = cardY + cardH * 0.18
+        drawText(show.titleOrEmpty, at: CGPoint(x: textX, y: titleY),
+                 font: titleFont, color: textColor,
+                 maxWidth: textW, canvasHeight: cardRect.maxY,
+                 forceNoTruncation: true)
+
+        // Venue
+        var nextY = titleY + titleSz * 1.3
+        if options.showVenue, !show.venueOrEmpty.isEmpty {
+            let venueFont = resolvedFont(size: detailSz, weight: .medium, style: fontSt)
+            drawText(show.venueOrEmpty, at: CGPoint(x: textX, y: nextY),
+                     font: venueFont, color: subColor,
+                     maxWidth: textW, canvasHeight: cardRect.maxY,
+                     forceNoTruncation: true)
+            nextY += detailSz * 1.3
+        }
+
+        // Time
+        if options.showTime {
+            let timeFont = resolvedFont(size: detailSz * 0.9, weight: .regular, style: fontSt)
+            drawText(show.timeString, at: CGPoint(x: textX, y: nextY),
+                     font: timeFont, color: subColor.withAlphaComponent(0.75),
+                     maxWidth: textW, canvasHeight: cardRect.maxY)
+        }
+    }
+
+    /// Minimal: Clean text-only, no date badge
+    private static func drawMinimalCard(ctx: CGContext, show: ShowSnapshot, cardRect: CGRect,
+                                         innerPad: CGFloat, titleSz: CGFloat, detailSz: CGFloat,
+                                         fontSt: FontStyle, textColor: UIColor, subColor: UIColor,
+                                         options: ExportOptions) {
+        let cardX = cardRect.minX
+        let cardY = cardRect.minY
+        let cardW = cardRect.width
+        
+        let textX = cardX + innerPad
+        let textW = max(1, cardW - innerPad * 2)
+        var currentY = cardY + innerPad
+
+        // Title
+        let titleFont = resolvedFont(size: titleSz, weight: .bold, style: fontSt)
+        drawText(show.titleOrEmpty, at: CGPoint(x: textX, y: currentY),
+                 font: titleFont, color: textColor,
+                 maxWidth: textW, canvasHeight: cardRect.maxY,
+                 forceNoTruncation: true)
+        currentY += titleSz * 1.2
+
+        // Date inline
+        if options.showDate {
+            let dateFont = resolvedFont(size: detailSz, weight: .medium, style: fontSt)
+            let dateStr = "\(show.monthAbbrev) \(show.dayNumber)" + (options.showTime ? " · \(show.timeString)" : "")
+            drawText(dateStr, at: CGPoint(x: textX, y: currentY),
+                     font: dateFont, color: subColor,
+                     maxWidth: textW, canvasHeight: cardRect.maxY)
+            currentY += detailSz * 1.2
+        }
+
+        // Venue
+        if options.showVenue, !show.venueOrEmpty.isEmpty {
+            let venueFont = resolvedFont(size: detailSz * 0.9, weight: .regular, style: fontSt)
+            drawText(show.venueOrEmpty, at: CGPoint(x: textX, y: currentY),
+                     font: venueFont, color: subColor.withAlphaComponent(0.7),
+                     maxWidth: textW, canvasHeight: cardRect.maxY,
+                     forceNoTruncation: true)
+        }
+    }
+
+    /// Bold: Large date on top, details below
+    private static func drawBoldCard(ctx: CGContext, show: ShowSnapshot, cardRect: CGRect,
+                                      innerPad: CGFloat, titleSz: CGFloat, detailSz: CGFloat,
+                                      dateSz: CGFloat, monthSz: CGFloat, fontSt: FontStyle,
+                                      accent: UIColor, textColor: UIColor, subColor: UIColor,
+                                      options: ExportOptions) {
+        let cardX = cardRect.minX
+        let cardY = cardRect.minY
+        let cardW = cardRect.width
+        let cardH = cardRect.height
+        
+        let textX = cardX + innerPad
+        let textW = max(1, cardW - innerPad * 2)
+        var currentY = cardY + innerPad * 0.5
+
+        // Large date at top
+        if options.showDate {
+            let bigDateSz = dateSz * 2.5
+            let dateFont = resolvedFont(size: bigDateSz, weight: .heavy, style: fontSt)
+            let dateStr = "\(show.monthAbbrev) \(show.dayNumber)" as NSString
+            let dateAttrs: [NSAttributedString.Key: Any] = [.font: dateFont, .foregroundColor: accent]
+            let dateSize = dateStr.size(withAttributes: dateAttrs)
+            UIGraphicsPushContext(ctx)
+            dateStr.draw(at: CGPoint(x: cardX + (cardW - dateSize.width) / 2, y: currentY), withAttributes: dateAttrs)
+            UIGraphicsPopContext()
+            currentY += bigDateSz * 1.1
+        }
+
+        // Title centered
+        let titleFont = resolvedFont(size: titleSz, weight: .bold, style: fontSt)
+        let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont, .foregroundColor: textColor]
+        let titleStr = show.titleOrEmpty as NSString
+        let titleSize = titleStr.size(withAttributes: titleAttrs)
+        UIGraphicsPushContext(ctx)
+        titleStr.draw(at: CGPoint(x: cardX + (cardW - min(titleSize.width, textW)) / 2, y: currentY), withAttributes: titleAttrs)
+        UIGraphicsPopContext()
+        currentY += titleSz * 1.2
+
+        // Venue centered
+        if options.showVenue, !show.venueOrEmpty.isEmpty {
+            let venueFont = resolvedFont(size: detailSz, weight: .medium, style: fontSt)
+            let venueAttrs: [NSAttributedString.Key: Any] = [.font: venueFont, .foregroundColor: subColor]
+            let venueStr = show.venueOrEmpty as NSString
+            let venueSize = venueStr.size(withAttributes: venueAttrs)
+            UIGraphicsPushContext(ctx)
+            venueStr.draw(at: CGPoint(x: cardX + (cardW - min(venueSize.width, textW)) / 2, y: currentY), withAttributes: venueAttrs)
+            UIGraphicsPopContext()
+            currentY += detailSz * 1.2
+        }
+
+        // Time centered
+        if options.showTime {
+            let timeFont = resolvedFont(size: detailSz * 0.9, weight: .regular, style: fontSt)
+            let timeAttrs: [NSAttributedString.Key: Any] = [.font: timeFont, .foregroundColor: subColor.withAlphaComponent(0.7)]
+            let timeStr = show.timeString as NSString
+            let timeSize = timeStr.size(withAttributes: timeAttrs)
+            UIGraphicsPushContext(ctx)
+            timeStr.draw(at: CGPoint(x: cardX + (cardW - timeSize.width) / 2, y: currentY), withAttributes: timeAttrs)
+            UIGraphicsPopContext()
+        }
+    }
+
+    /// Compact: Small cards with essential info
+    private static func drawCompactCard(ctx: CGContext, show: ShowSnapshot, cardRect: CGRect,
+                                         innerPad: CGFloat, titleSz: CGFloat, detailSz: CGFloat,
+                                         monthSz: CGFloat, fontSt: FontStyle,
+                                         accent: UIColor, textColor: UIColor, subColor: UIColor,
+                                         options: ExportOptions) {
+        let cardX = cardRect.minX
+        let cardY = cardRect.minY
+        let cardW = cardRect.width
+        
+        let textX = cardX + innerPad * 0.5
+        let textW = max(1, cardW - innerPad)
+        var currentY = cardY + innerPad * 0.3
+
+        // Date small inline
+        if options.showDate {
+            let dateFont = resolvedFont(size: monthSz, weight: .bold, style: fontSt)
+            let dateStr = "\(show.monthAbbrev) \(show.dayNumber)"
+            drawText(dateStr, at: CGPoint(x: textX, y: currentY),
+                     font: dateFont, color: accent,
+                     maxWidth: textW, canvasHeight: cardRect.maxY)
+            currentY += monthSz * 1.1
+        }
+
+        // Title
+        let titleFont = resolvedFont(size: titleSz * 0.9, weight: .bold, style: fontSt)
+        drawText(show.titleOrEmpty, at: CGPoint(x: textX, y: currentY),
+                 font: titleFont, color: textColor,
+                 maxWidth: textW, canvasHeight: cardRect.maxY,
+                 forceNoTruncation: true)
+        currentY += titleSz * 1.0
+
+        // Venue (smaller)
+        if options.showVenue, !show.venueOrEmpty.isEmpty {
+            let venueFont = resolvedFont(size: detailSz * 0.8, weight: .regular, style: fontSt)
+            drawText(show.venueOrEmpty, at: CGPoint(x: textX, y: currentY),
+                     font: venueFont, color: subColor.withAlphaComponent(0.7),
+                     maxWidth: textW, canvasHeight: cardRect.maxY,
+                     forceNoTruncation: true)
         }
     }
 
@@ -663,13 +939,31 @@ enum ShareImageGenerator {
 
     private static func drawText(_ text: String, at origin: CGPoint, font: UIFont,
                                   color: UIColor, maxWidth: CGFloat, canvasHeight: CGFloat,
-                                  lineSpacing: CGFloat = 0) {
+                                  lineSpacing: CGFloat = 0, forceNoTruncation: Bool = false) {
         let drawWidth = max(1, maxWidth)
         let drawHeight = max(1, canvasHeight - origin.y)
         let ps = NSMutableParagraphStyle()
-        ps.lineSpacing = lineSpacing; ps.lineBreakMode = .byTruncatingTail
-        NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: ps])
-            .draw(in: CGRect(x: origin.x, y: origin.y, width: drawWidth, height: drawHeight))
+        ps.lineSpacing = lineSpacing
+        if forceNoTruncation {
+            ps.lineBreakMode = .byWordWrapping
+        } else {
+            ps.lineBreakMode = .byTruncatingTail
+        }
+        var usedFont = font
+        var attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: ps])
+        var bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: drawHeight), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+        // If forceNoTruncation and text doesn't fit, reduce font size until it fits
+        if forceNoTruncation && (bounding.height > drawHeight || bounding.width > drawWidth) {
+            var fontSize = font.pointSize
+            let minFontSize: CGFloat = 8
+            while (bounding.height > drawHeight || bounding.width > drawWidth) && fontSize > minFontSize {
+                fontSize -= 1
+                usedFont = font.withSize(fontSize)
+                attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: ps])
+                bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: drawHeight), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+            }
+        }
+        attrString.draw(in: CGRect(x: origin.x, y: origin.y, width: drawWidth, height: drawHeight))
     }
 }
 

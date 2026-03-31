@@ -15,6 +15,7 @@ struct ShowDetailView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("showDateTextSize") private var showDateTextSize: Double = 12
 
     let onEdit: () -> Void
 
@@ -249,7 +250,7 @@ struct ShowDetailView: View {
             if !show.venueOrEmpty.isEmpty {
                 InfoCard(icon: "mappin.and.ellipse", label: "Venue", value: show.venueOrEmpty)
             }
-            InfoCard(icon: "calendar", label: "Date & Time", value: show.dateFormatted)
+            InfoCard(icon: "calendar", label: "Date & Time", value: show.dateFormatted, valueFontSize: showDateTextSize)
             InfoCard(icon: "tag.fill", label: "Price", value: show.priceFormatted)
             if !show.roleOrEmpty.isEmpty {
                 InfoCard(icon: "person.fill", label: "Role", value: show.roleOrEmpty)
@@ -338,7 +339,15 @@ private struct InfoCard: View {
     let icon: String
     let label: String
     let value: String
+    let valueFontSize: Double?
     @Environment(\.colorScheme) private var colorScheme
+
+    init(icon: String, label: String, value: String, valueFontSize: Double? = nil) {
+        self.icon = icon
+        self.label = label
+        self.value = value
+        self.valueFontSize = valueFontSize
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -356,7 +365,7 @@ private struct InfoCard: View {
                 .tracking(0.5)
 
             Text(value)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: valueFontSize ?? 15, weight: .semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)

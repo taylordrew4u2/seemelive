@@ -9,23 +9,21 @@ import SwiftUI
 import PhotosUI
 
 // MARK: - Share Image Editor View
-/// A full-screen canvas editor for customising the share image.
-/// Supports custom backgrounds (solid colour, gradient, photo),
-/// draggable text overlays with font/size/colour controls.
+/// A full-screen flyer editor with customization and export.
 
 struct ShareImageEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let shows: [Show]
     let performerName: String
-    @Binding var options: ExportOptions
 
     // MARK: - Local State
+    @State private var options: ExportOptions = ExportOptions()
     @State private var cachedImage: UIImage = UIImage()
     @State private var renderTask: Task<Void, Never>?
 
     // Background
-    @State private var bgKind: CustomBackground.Kind = .solidColor
+    @State private var bgKind: CustomBackground.Kind = .gradient
     @State private var solidColor: Color = Color(hex: "#1A0A00") ?? .black
     @State private var gradFrom: Color = Color(hex: "#1A0A00") ?? .black
     @State private var gradTo: Color = Color(hex: "#3D1C00") ?? .brown
@@ -39,64 +37,42 @@ struct ShareImageEditorView: View {
     @State private var newOverlayText: String = ""
     @State private var showAddTextSheet = false
 
-    // Bottom panel
-    @State private var activePanel: EditorPanel = .background
+    // Colors
+    @State private var accentColor: Color = Color("AccentColor")
+    @State private var textColor: Color = .white
 
-    // Canvas geometry
-    @State private var canvasSize: CGSize = .zero
+    // Bottom panel
+    @State private var activePanel: EditorPanel = .layout
 
     private enum EditorPanel: String, CaseIterable {
+        case layout = "Layout"
         case background = "Background"
-        case text = "Text"
-        case style = "Style"
+        case content = "Content"
+        case text = "Add Text"
 
         var icon: String {
             switch self {
+            case .layout:     return "square.grid.2x2"
             case .background: return "paintpalette"
+            case .content:    return "checklist"
             case .text:       return "textformat"
-            case .style:      return "slider.horizontal.3"
             }
         }
     }
 
-    // MARK: - Available Fonts
-
-    private static let availableFonts: [(name: String, display: String)] = [
-        ("System", "SF Pro"),
-        ("AvenirNext-Bold", "Avenir Next"),
-        ("Georgia-Bold", "Georgia"),
-        ("Futura-Bold", "Futura"),
-        ("Menlo-Bold", "Menlo"),
-        ("GillSans-Bold", "Gill Sans"),
-        ("Rockwell-Bold", "Rockwell"),
-        ("Palatino-Bold", "Palatino"),
-        ("Copperplate-Bold", "Copperplate"),
-        ("AmericanTypewriter-Bold", "Typewriter")
-    ]
-
-    private static let fontWeights: [(name: String, display: String)] = [
-        ("regular", "Regular"),
-        ("medium", "Medium"),
-        ("semibold", "Semibold"),
-        ("bold", "Bold"),
-        ("heavy", "Heavy"),
-        ("black", "Black")
-    ]
-
+    // Preset colors
     private static let presetColors: [String] = [
-        "#FFFFFF", "#000000", "#FF3B30", "#FF9500", "#FFCC00",
+        "#FFFFFF", "#000000", "#EB2429", "#FF9500", "#FFCC00",
         "#34C759", "#007AFF", "#AF52DE", "#FF2D55", "#CC7057"
     ]
 
     private static let gradientPresets: [(from: String, to: String, label: String)] = [
-        ("#1A0A00", "#3D1C00", "Warm Brown"),
-        ("#0F0C29", "#302B63", "Deep Purple"),
-        ("#000000", "#434343", "Charcoal"),
-        ("#1A1A2E", "#16213E", "Midnight"),
+        ("#1A0A00", "#3D1C00", "Warm"),
+        ("#0F0C29", "#302B63", "Purple"),
+        ("#000000", "#434343", "Dark"),
         ("#2C3E50", "#4CA1AF", "Ocean"),
-        ("#141E30", "#243B55", "Royal"),
-        ("#232526", "#414345", "Slate"),
-        ("#FF416C", "#FF4B2B", "Sunset")
+        ("#FF416C", "#FF4B2B", "Sunset"),
+        ("#141E30", "#243B55", "Royal")
     ]
 
     // MARK: - Body
@@ -107,45 +83,50 @@ struct ShareImageEditorView: View {
                 Color.black.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // ── Canvas ──
+                    // Canvas preview
                     canvasPreview
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, 16)
                         .padding(.top, 8)
 
-                    Spacer(minLength: 8)
+                    // Export button
+                    exportButton
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
 
-                    // ── Tab Bar ──
+                    // Tab bar
                     panelTabBar
-                        .padding(.top, 4)
+                        .padding(.top, 8)
 
-                    // ── Active Panel ──
+                    // Panel content
                     panelContent
-                        .frame(height: 220)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .frame(height: 180)
                         .animation(.easeInOut(duration: 0.2), value: activePanel)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundStyle(.white)
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .frame(width: 30, height: 30)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
                 }
                 ToolbarItem(placement: .principal) {
-                    Text("Edit Image")
-                        .font(.system(size: 17, weight: .semibold))
+                    Text("Create Flyer")
+                        .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(.white)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") { applyAndDismiss() }
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
                 }
             }
             .toolbarBackground(.hidden, for: .navigationBar)
         }
         .preferredColorScheme(.dark)
-        .onAppear { loadInitialState(); regeneratePreview() }
+        .onAppear { regeneratePreview() }
         .onChange(of: bgKind) { regeneratePreview() }
         .onChange(of: solidColor) { regeneratePreview() }
         .onChange(of: gradFrom) { regeneratePreview() }
@@ -153,7 +134,7 @@ struct ShareImageEditorView: View {
         .onChange(of: bgPhotoData) { regeneratePreview() }
         .onChange(of: overlays.count) { regeneratePreview() }
         .sheet(isPresented: $showAddTextSheet) {
-            AddTextOverlaySheet(text: $newOverlayText) { finishedText in
+            AddTextSheet(text: $newOverlayText) { finishedText in
                 guard !finishedText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                 let overlay = TextOverlay(text: finishedText)
                 overlays.append(overlay)
@@ -163,6 +144,28 @@ struct ShareImageEditorView: View {
             }
             .presentationDetents([.height(200)])
         }
+    }
+
+    // MARK: - Export Button
+
+    private var exportButton: some View {
+        Button(action: shareImage) {
+            HStack(spacing: 10) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 18, weight: .bold))
+                Text("Export Flyer")
+                    .font(.system(size: 17, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.accentColor)
+                    .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 5)
+            )
+        }
+        .buttonStyle(ScaleButtonStyle())
     }
 
     // MARK: - Canvas Preview
@@ -175,27 +178,33 @@ struct ShareImageEditorView: View {
             let availH = geo.size.height
             let fitW = min(availW, availH * aspect)
             let fitH = fitW / aspect
+            let fitH = fitW / aspect
 
             ZStack {
                 Image(uiImage: cachedImage)
                     .resizable()
                     .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: .black.opacity(0.5), radius: 20, y: 10)
 
-                // Draggable text overlays on canvas
+                // Draggable text overlays
                 ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
                     DraggableTextLabel(
                         overlay: $overlays[idx],
                         canvasSize: CGSize(width: fitW, height: fitH),
                         isSelected: selectedOverlayID == overlay.id,
                         onTap: { selectedOverlayID = overlay.id },
-                        onDragEnd: { regeneratePreview() }
+                        onDragEnd: { regeneratePreview() },
+                        onDelete: {
+                            overlays.remove(at: idx)
+                            selectedOverlayID = nil
+                            regeneratePreview()
+                        }
                     )
                 }
             }
             .frame(width: fitW, height: fitH)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onAppear { canvasSize = CGSize(width: fitW, height: fitH) }
         }
     }
 
@@ -209,13 +218,13 @@ struct ShareImageEditorView: View {
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: panel.icon)
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.system(size: 20, weight: .semibold))
                         Text(panel.rawValue)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                     }
                     .foregroundStyle(activePanel == panel ? Color.accentColor : .white.opacity(0.5))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
             }
@@ -229,125 +238,163 @@ struct ShareImageEditorView: View {
     @ViewBuilder
     private var panelContent: some View {
         ScrollView {
-            switch activePanel {
-            case .background: backgroundPanel
-            case .text:       textPanel
-            case .style:      stylePanel
+            VStack(alignment: .leading, spacing: 16) {
+                switch activePanel {
+                case .layout:
+                    layoutPanel
+                case .background:
+                    backgroundPanel
+                case .content:
+                    contentPanel
+                case .text:
+                    textPanel
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+        }
+    }
+
+    // MARK: - Layout Panel
+
+    private var layoutPanel: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Template selector
+            VStack(alignment: .leading, spacing: 10) {
+                Text("TEMPLATE")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(LayoutTemplate.allCases) { template in
+                            templateCard(template)
+                        }
+                    }
+                }
+            }
+
+            // Size selector
+            VStack(alignment: .leading, spacing: 10) {
+                Text("SIZE")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(SocialSizePreset.allCases) { preset in
+                            sizeButton(preset)
+                        }
+                    }
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
+    }
+
+    private func templateCard(_ template: LayoutTemplate) -> some View {
+        let isSelected = options.layoutTemplate == template
+        return Button {
+            options.layoutTemplate = template
+            regeneratePreview()
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: template.icon)
+                    .font(.system(size: 24, weight: .medium))
+                    .frame(width: 56, height: 56)
+                    .background(isSelected ? Color.accentColor : Color.white.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                
+                Text(template.rawValue)
+                    .font(.system(size: 12, weight: .semibold))
+                
+                Text(template.description)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(width: 80)
+            .foregroundStyle(isSelected ? .white : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sizeButton(_ preset: SocialSizePreset) -> some View {
+        let isSelected = options.sizePreset == preset
+        return Button {
+            options.sizePreset = preset
+            regeneratePreview()
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: preset.icon)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(preset.rawValue)
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .frame(width: 70, height: 50)
+            .background(isSelected ? Color.accentColor : Color.white.opacity(0.08))
+            .foregroundStyle(isSelected ? .white : .secondary)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Background Panel
 
     private var backgroundPanel: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Kind picker
-            HStack(spacing: 8) {
-                bgKindButton("Solid", icon: "circle.fill", kind: .solidColor)
-                bgKindButton("Gradient", icon: "paintpalette.fill", kind: .gradient)
-                bgKindButton("Photo", icon: "photo.fill", kind: .photo)
+            // Background type
+            HStack(spacing: 10) {
+                bgTypeButton("Solid", icon: "circle.fill", kind: .solidColor)
+                bgTypeButton("Gradient", icon: "paintpalette.fill", kind: .gradient)
+                bgTypeButton("Photo", icon: "photo.fill", kind: .photo)
             }
 
+            // Background options based on type
             switch bgKind {
             case .solidColor:
-                HStack(spacing: 10) {
-                    ForEach(Self.presetColors, id: \.self) { hex in
-                        Button {
-                            solidColor = Color(hex: hex) ?? .black
-                        } label: {
-                            Circle()
-                                .fill(Color(hex: hex) ?? .black)
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Circle().stroke(.white.opacity(0.3), lineWidth: 1)
-                                )
-                                .overlay(
-                                    colorHex(solidColor) == hex ?
-                                    Circle().stroke(Color.accentColor, lineWidth: 2.5)
-                                        .frame(width: 38, height: 38) : nil
-                                )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Self.presetColors, id: \.self) { hex in
+                            colorCircle(hex: hex, isSelected: colorHex(solidColor) == hex) {
+                                solidColor = Color(hex: hex) ?? .black
+                            }
                         }
-                        .buttonStyle(.plain)
+                        ColorPicker("", selection: $solidColor, supportsOpacity: false)
+                            .labelsHidden()
+                            .frame(width: 36, height: 36)
                     }
-                }
-                HStack(spacing: 12) {
-                    ColorPicker("Custom", selection: $solidColor, supportsOpacity: false)
-                        .labelsHidden()
-                        .frame(width: 44, height: 44)
-                    Text("Pick any colour")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
             case .gradient:
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(Self.gradientPresets, id: \.label) { preset in
-                            Button {
-                                gradFrom = Color(hex: preset.from) ?? .black
-                                gradTo = Color(hex: preset.to) ?? .gray
-                            } label: {
-                                VStack(spacing: 4) {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [Color(hex: preset.from) ?? .black,
-                                                         Color(hex: preset.to) ?? .gray],
-                                                startPoint: .top, endPoint: .bottom
-                                            )
-                                        )
-                                        .frame(width: 48, height: 48)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                .stroke(.white.opacity(0.2), lineWidth: 1)
-                                        )
-                                    Text(preset.label)
-                                        .font(.system(size: 9, weight: .medium))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .buttonStyle(.plain)
+                            gradientButton(preset)
                         }
-                    }
-                }
-                HStack(spacing: 16) {
-                    VStack(spacing: 4) {
-                        Text("From")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        ColorPicker("", selection: $gradFrom, supportsOpacity: false)
-                            .labelsHidden()
-                    }
-                    VStack(spacing: 4) {
-                        Text("To")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        ColorPicker("", selection: $gradTo, supportsOpacity: false)
-                            .labelsHidden()
                     }
                 }
 
             case .photo:
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     PhotosPicker(selection: $bgPhotoItem, matching: .images) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             Image(systemName: "photo.on.rectangle.angled")
-                            Text(bgPhotoData != nil ? "Change Photo" : "Choose Photo")
+                            Text(bgPhotoData != nil ? "Change" : "Choose Photo")
                                 .font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .padding(.vertical, 12)
+                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
 
                     if let thumb = bgPhotoThumb {
                         Image(uiImage: thumb)
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 52, height: 52)
+                            .frame(width: 48, height: 48)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                 }
@@ -355,222 +402,42 @@ struct ShareImageEditorView: View {
                     Task { await loadBGPhoto(from: newItem) }
                 }
             }
-        }
-    }
 
-    // MARK: - Text Panel
-
-    private var textPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Add text button
-            Button {
-                showAddTextSheet = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 18))
-                    Text("Add Text")
-                        .font(.system(size: 15, weight: .semibold))
-                }
-                .foregroundStyle(Color.accentColor)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-            .buttonStyle(.plain)
-
-            if overlays.isEmpty {
-                Text("Tap + Add Text to place custom text on your image.\nDrag text on the canvas to reposition.")
-                    .font(.caption)
+            // Accent color
+            VStack(alignment: .leading, spacing: 8) {
+                Text("ACCENT COLOR")
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 8)
-            }
-
-            // Overlay list
-            ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
-                overlayRow(idx: idx, overlay: overlay)
-            }
-        }
-    }
-
-    private func overlayRow(idx: Int, overlay: TextOverlay) -> some View {
-        let isSelected = selectedOverlayID == overlay.id
-
-        return VStack(spacing: 8) {
-            HStack {
-                Text(overlay.text)
-                    .font(.system(size: 14, weight: .semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(.white)
-                Spacer()
-                Button {
-                    overlays.remove(at: idx)
-                    if selectedOverlayID == overlay.id { selectedOverlayID = nil }
-                    regeneratePreview()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.red.opacity(0.8))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.06))
-            )
-            .onTapGesture { selectedOverlayID = overlay.id }
-
-            if isSelected {
-                selectedOverlayControls(idx: idx)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func selectedOverlayControls(idx: Int) -> some View {
-        VStack(spacing: 10) {
-            // Font picker
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Self.availableFonts, id: \.name) { font in
-                        let isActive = overlays[idx].fontName == font.name
-                        Button {
-                            overlays[idx].fontName = font.name
-                            regeneratePreview()
-                        } label: {
-                            Text(font.display)
-                                .font(.system(size: 12, weight: isActive ? .bold : .medium))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(isActive ? Color.accentColor : Color.white.opacity(0.08),
-                                            in: Capsule())
-                                .foregroundStyle(isActive ? .white : .secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            // Size slider
-            HStack(spacing: 10) {
-                Image(systemName: "textformat.size.smaller")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                Slider(value: $overlays[idx].fontSize, in: 0.03...0.20, step: 0.005)
-                    .tint(Color.accentColor)
-                    .onChange(of: overlays[idx].fontSize) { regeneratePreview() }
-                Image(systemName: "textformat.size.larger")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-
-            // Weight + colour
-            HStack(spacing: 12) {
-                // Weight picker
-                Menu {
-                    ForEach(Self.fontWeights, id: \.name) { w in
-                        Button {
-                            overlays[idx].fontWeight = w.name
-                            regeneratePreview()
-                        } label: {
-                            HStack {
-                                Text(w.display)
-                                if overlays[idx].fontWeight == w.name {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(Self.fontWeights.first { $0.name == overlays[idx].fontWeight }?.display ?? "Bold")
-                            .font(.system(size: 12, weight: .medium))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.08), in: Capsule())
-                    .foregroundStyle(.white)
-                }
-
-                // Colour
+                    .tracking(1)
+                
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         ForEach(Self.presetColors, id: \.self) { hex in
-                            Button {
-                                overlays[idx].colorHex = hex
+                            colorCircle(hex: hex, isSelected: colorHex(accentColor) == hex) {
+                                accentColor = Color(hex: hex) ?? .white
+                                options.accentHex = hex
                                 regeneratePreview()
-                            } label: {
-                                Circle()
-                                    .fill(Color(hex: hex) ?? .white)
-                                    .frame(width: 24, height: 24)
-                                    .overlay(
-                                        Circle().stroke(.white.opacity(0.3), lineWidth: 0.5)
-                                    )
-                                    .overlay(
-                                        overlays[idx].colorHex == hex ?
-                                        Circle().stroke(Color.accentColor, lineWidth: 2)
-                                            .frame(width: 29, height: 29) : nil
-                                    )
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
             }
         }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.04))
-        )
     }
 
-    // MARK: - Style Panel
-
-    private var stylePanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Toggle(isOn: Binding(
-                get: { options.showDate },
-                set: { options.showDate = $0; regeneratePreview() }
-            )) {
-                Label("Date", systemImage: "calendar")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white)
-            }
-            .tint(Color.accentColor)
-
-            Toggle(isOn: Binding(
-                get: { options.showVenue },
-                set: { options.showVenue = $0; regeneratePreview() }
-            )) {
-                Label("Venue", systemImage: "mappin.circle")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white)
-            }
-            .tint(Color.accentColor)
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func bgKindButton(_ label: String, icon: String, kind: CustomBackground.Kind) -> some View {
+    private func bgTypeButton(_ label: String, icon: String, kind: CustomBackground.Kind) -> some View {
         let isActive = bgKind == kind
         return Button {
             bgKind = kind
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 13))
+                    .font(.system(size: 14))
                 Text(label)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
+            .padding(.vertical, 12)
             .background(isActive ? Color.accentColor : Color.white.opacity(0.08),
                         in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .foregroundStyle(isActive ? .white : .secondary)
@@ -578,24 +445,193 @@ struct ShareImageEditorView: View {
         .buttonStyle(.plain)
     }
 
+    private func colorCircle(hex: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Circle()
+                .fill(Color(hex: hex) ?? .gray)
+                .frame(width: 36, height: 36)
+                .overlay(
+                    Circle().stroke(.white.opacity(0.3), lineWidth: 1)
+                )
+                .overlay(
+                    isSelected ? Circle().stroke(Color.accentColor, lineWidth: 3).frame(width: 42, height: 42) : nil
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func gradientButton(_ preset: (from: String, to: String, label: String)) -> some View {
+        Button {
+            gradFrom = Color(hex: preset.from) ?? .black
+            gradTo = Color(hex: preset.to) ?? .gray
+        } label: {
+            VStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: preset.from) ?? .black, Color(hex: preset.to) ?? .gray],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .frame(width: 50, height: 50)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(.white.opacity(0.2), lineWidth: 1)
+                    )
+                Text(preset.label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Content Panel
+
+    private var contentPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("SHOW / HIDE")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.secondary)
+                .tracking(1)
+            
+            VStack(spacing: 12) {
+                contentToggle(title: "Show Title", subtitle: "Event name", isOn: Binding(
+                    get: { true },
+                    set: { _ in }
+                ), icon: "text.alignleft", disabled: true)
+                
+                contentToggle(title: "Show Venue", subtitle: "Location name", isOn: Binding(
+                    get: { options.showVenue },
+                    set: { options.showVenue = $0; regeneratePreview() }
+                ), icon: "mappin.circle")
+                
+                contentToggle(title: "Show Date", subtitle: "Day & month badge", isOn: Binding(
+                    get: { options.showDate },
+                    set: { options.showDate = $0; regeneratePreview() }
+                ), icon: "calendar")
+                
+                contentToggle(title: "Show Time", subtitle: "Event time", isOn: Binding(
+                    get: { options.showTime },
+                    set: { options.showTime = $0; regeneratePreview() }
+                ), icon: "clock")
+            }
+        }
+    }
+
+    private func contentToggle(title: String, subtitle: String, isOn: Binding<Bool>, icon: String, disabled: Bool = false) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundStyle(disabled ? .secondary : Color.accentColor)
+                .frame(width: 28)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(disabled ? Color.secondary : Color.white)
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.secondary)
+            }
+            
+            Spacer()
+            
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(Color.accentColor)
+                .disabled(disabled)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    // MARK: - Text Panel
+
+    private var textPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Button {
+                showAddTextSheet = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 22))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add Custom Text")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Add your name, tagline, or any text")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .foregroundStyle(Color.accentColor)
+                .padding(14)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            if overlays.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "text.badge.plus")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                    Text("No text added yet")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("Tap above to add your name or tagline")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+            } else {
+                ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
+                    overlayRow(idx: idx, overlay: overlay)
+                }
+            }
+        }
+    }
+
+    private func overlayRow(idx: Int, overlay: TextOverlay) -> some View {
+        HStack {
+            Text(overlay.text)
+                .font(.system(size: 15, weight: .medium))
+                .lineLimit(1)
+                .foregroundStyle(.white)
+            
+            Spacer()
+            
+            Button {
+                overlays.remove(at: idx)
+                if selectedOverlayID == overlay.id { selectedOverlayID = nil }
+                regeneratePreview()
+            } label: {
+                Image(systemName: "trash.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.red.opacity(0.8))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(selectedOverlayID == overlay.id ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.06))
+        )
+        .onTapGesture { selectedOverlayID = overlay.id }
+    }
+
+    // MARK: - Helpers
+
     private func colorHex(_ color: Color) -> String {
         let ui = UIColor(color)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
         ui.getRed(&r, green: &g, blue: &b, alpha: nil)
         return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
-    }
-
-    private func loadInitialState() {
-        let bg = options.customBackground
-        bgKind = bg.kind
-        solidColor = Color(hex: bg.solidHex) ?? .black
-        gradFrom = Color(hex: bg.gradientFromHex) ?? .black
-        gradTo = Color(hex: bg.gradientToHex) ?? .gray
-        bgPhotoData = bg.photoData
-        if let data = bg.photoData, let img = UIImage(data: data) {
-            bgPhotoThumb = img
-        }
-        overlays = options.textOverlays
     }
 
     private func buildCustomBG() -> CustomBackground {
@@ -614,9 +650,11 @@ struct ShareImageEditorView: View {
         opts.backgroundStyle = .custom
         opts.customBackground = buildCustomBG()
         opts.textOverlays = overlays
+        opts.accentHex = colorHex(accentColor)
         
-        // Snapshot Show managed objects on the main thread (safe).
-        let snapshots = shows.map { ShowSnapshot(from: $0) }
+        let now = Date()
+        let upcomingShows = shows.filter { ($0.date ?? now) >= now }
+        let snapshots = upcomingShows.map { ShowSnapshot(from: $0) }
         let name = performerName.isEmpty ? "My Shows" : performerName
         
         renderTask = Task { @MainActor in
@@ -629,22 +667,27 @@ struct ShareImageEditorView: View {
         }
     }
 
-    private func applyAndDismiss() {
-        options.backgroundStyle = .custom
-        options.customBackground = buildCustomBG()
-        options.textOverlays = overlays
-        let impact = UIImpactFeedbackGenerator(style: .medium)
-        impact.impactOccurred()
-        dismiss()
+    private func shareImage() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        let image = cachedImage
+        let vc = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = scene.windows.first?.rootViewController else { return }
+        var top = root
+        while let p = top.presentedViewController { top = p }
+        if let pop = vc.popoverPresentationController {
+            pop.sourceView = top.view
+            pop.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)
+            pop.permittedArrowDirections = []
+        }
+        top.present(vc, animated: true)
     }
 
     private func loadBGPhoto(from item: PhotosPickerItem?) async {
         guard let item else { return }
         if let data = try? await item.loadTransferable(type: Data.self) {
-            // Process image off main thread
             let thumb = await Task.detached(priority: .userInitiated) {
                 if let img = UIImage(data: data) {
-                    // Create a smaller thumbnail version for the editor UI
                     return img.preparingThumbnail(of: CGSize(width: 300, height: 300))
                 }
                 return nil
@@ -667,6 +710,7 @@ private struct DraggableTextLabel: View {
     let isSelected: Bool
     let onTap: () -> Void
     let onDragEnd: () -> Void
+    let onDelete: () -> Void
 
     @State private var dragOffset: CGSize = .zero
 
@@ -674,49 +718,64 @@ private struct DraggableTextLabel: View {
         let cx = overlay.positionX * canvasSize.width
         let cy = overlay.positionY * canvasSize.height
 
-        Text(overlay.text)
-            .font(resolvedFont)
-            .foregroundStyle(Color(hex: overlay.colorHex) ?? .white)
-            .rotationEffect(.degrees(overlay.rotation))
-            .padding(6)
-            .background(
-                isSelected ?
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                : nil
-            )
-            .position(x: cx + dragOffset.width, y: cy + dragOffset.height)
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        dragOffset = value.translation
-                    }
-                    .onEnded { value in
-                        let newX = (cx + value.translation.width) / canvasSize.width
-                        let newY = (cy + value.translation.height) / canvasSize.height
-                        overlay.positionX = max(0.05, min(0.95, newX))
-                        overlay.positionY = max(0.05, min(0.95, newY))
-                        dragOffset = .zero
-                        onDragEnd()
-                    }
-            )
-            .onTapGesture { onTap() }
+        ZStack(alignment: .topTrailing) {
+            Text(overlay.text)
+                .font(resolvedFont)
+                .foregroundStyle(Color(hex: overlay.colorHex) ?? .white)
+                .rotationEffect(.degrees(overlay.rotation))
+                .padding(8)
+                .background(
+                    isSelected ?
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.black.opacity(0.3))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(Color.accentColor, lineWidth: 2)
+                        )
+                    : nil
+                )
+            
+            if isSelected {
+                Button(action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.white, .red)
+                }
+                .offset(x: 8, y: -8)
+            }
+        }
+        .position(x: cx + dragOffset.width, y: cy + dragOffset.height)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    let newX = (cx + value.translation.width) / canvasSize.width
+                    let newY = (cy + value.translation.height) / canvasSize.height
+                    overlay.positionX = max(0.05, min(0.95, newX))
+                    overlay.positionY = max(0.05, min(0.95, newY))
+                    dragOffset = .zero
+                    onDragEnd()
+                }
+        )
+        .onTapGesture { onTap() }
     }
 
     private var resolvedFont: Font {
-        let size = overlay.fontSize * canvasSize.width * 0.4  // scale down for preview
+        let size = overlay.fontSize * canvasSize.width * 0.4
         let weight: Font.Weight = {
             switch overlay.fontWeight.lowercased() {
             case "ultralight": return .ultraLight
-            case "thin":       return .thin
-            case "light":      return .light
-            case "regular":    return .regular
-            case "medium":     return .medium
-            case "semibold":   return .semibold
-            case "bold":       return .bold
-            case "heavy":      return .heavy
-            case "black":      return .black
-            default:           return .bold
+            case "thin": return .thin
+            case "light": return .light
+            case "regular": return .regular
+            case "medium": return .medium
+            case "semibold": return .semibold
+            case "bold": return .bold
+            case "heavy": return .heavy
+            case "black": return .black
+            default: return .bold
             }
         }()
         if overlay.fontName == "System" {
@@ -727,9 +786,9 @@ private struct DraggableTextLabel: View {
     }
 }
 
-// MARK: - Add Text Overlay Sheet
+// MARK: - Add Text Sheet
 
-private struct AddTextOverlaySheet: View {
+private struct AddTextSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var text: String
     let onAdd: (String) -> Void
@@ -737,25 +796,25 @@ private struct AddTextOverlaySheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                TextField("Enter text…", text: $text)
-                    .font(.system(size: 18, weight: .medium))
-                    .padding(14)
-                    .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(spacing: 20) {
+                TextField("Your name, tagline, etc.", text: $text)
+                    .font(.system(size: 20, weight: .medium))
+                    .padding(16)
+                    .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .focused($isFocused)
 
                 Button {
                     onAdd(text)
                     dismiss()
                 } label: {
-                    Text("Add to Canvas")
-                        .font(.system(size: 16, weight: .bold))
+                    Text("Add to Flyer")
+                        .font(.system(size: 17, weight: .bold))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, 16)
                         .background(
                             text.trimmingCharacters(in: .whitespaces).isEmpty ?
                             Color(.systemGray4) : Color.accentColor,
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                         )
                         .foregroundStyle(.white)
                 }
@@ -763,7 +822,7 @@ private struct AddTextOverlaySheet: View {
 
                 Spacer()
             }
-            .padding(16)
+            .padding(20)
             .navigationTitle("Add Text")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -776,10 +835,20 @@ private struct AddTextOverlaySheet: View {
     }
 }
 
+// MARK: - Button Style
+
+private struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
 #Preview {
     ShareImageEditorView(
         shows: [],
-        performerName: "Taylor Drew",
-        options: .constant(ExportOptions())
+        performerName: "Taylor Drew"
     )
 }

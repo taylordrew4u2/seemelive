@@ -27,40 +27,14 @@ struct ShareLinkSheetView: View {
     @State private var performerName: String  = CalendarDisplayOptions.load().performerName
     @State private var options: ExportOptions = ExportOptions()
     @State private var cachedImage: UIImage   = UIImage()
-    @State private var accentColor: Color     = Color(red: 204/255, green: 112/255, blue: 87/255)
-    @State private var textColor: Color?      = nil  // nil = auto
-    @State private var useAutoTextColor: Bool = true
     @State private var renderTask: Task<Void, Never>? = nil
     @State private var showEditor = false
     @State private var bgPhotoItem: PhotosPickerItem?
     @State private var bgPhotoThumb: UIImage?
 
-    private var accentHex: String {
-        let ui = UIColor(accentColor)
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
-        ui.getRed(&r, green: &g, blue: &b, alpha: nil)
-        return String(format: "#%02X%02X%02X", Int(r*255), Int(g*255), Int(b*255))
-    }
-
-    private var textColorHex: String? {
-        guard !useAutoTextColor, let tc = textColor else { return nil }
-        let ui = UIColor(tc)
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
-        ui.getRed(&r, green: &g, blue: &b, alpha: nil)
-        return String(format: "#%02X%02X%02X", Int(r*255), Int(g*255), Int(b*255))
-    }
-
-    // Text color presets
-    private static let textColorPresets: [String] = [
-        "#FFFFFF", "#F5F5F5", "#E0E0E0", "#BDBDBD",
-        "#1A1A1A", "#333333", "#666666", "#999999"
-    ]
-
     // MARK: Body
     var body: some View {
         mainNavigation
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
             .fullScreenCover(isPresented: $showEditor) {
                 ShareImageEditorView(
                     shows: shows,
@@ -74,8 +48,6 @@ struct ShareLinkSheetView: View {
             .onAppear { regenerateImage() }
             .applyOptionChangeHandlers(options: $options, regenerate: regenerateImage)
             .onChange(of: performerName)           { regenerateImage() }
-            .onChange(of: accentColor)             { regenerateImage() }
-            .onChange(of: textColor)               { regenerateImage() }
     }
 
     private var mainNavigation: some View {
@@ -106,17 +78,6 @@ struct ShareLinkSheetView: View {
         ScrollView {
             VStack(spacing: 16) {
                 shareButtonSection
-                artistNameSection
-                platformSizeSection
-                textColorSection
-                customTextSection
-                headerStyleSection
-                fontStyleSection
-                dateFormatSection
-                fineTuningSection
-                gridColumnsSection
-                rowCountSection
-                togglesSection
                 previewSection
                 editImageButton
             }
@@ -151,278 +112,19 @@ struct ShareLinkSheetView: View {
         }
     }
 
-    private var artistNameSection: some View {
-        sectionCard(title: "Artist Name", icon: "person.fill") {
-            TextField("e.g. Taylor Drew", text: $performerName)
-                .textFieldStyle(.roundedBorder)
-                .submitLabel(.done)
-        }
-    }
 
-    private var platformSizeSection: some View {
-        sectionCard(title: "Platform Size", icon: "aspectratio.fill") {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
-                ForEach(SocialSizePreset.allCases) { preset in
-                    let selected = options.sizePreset == preset
-                    Button { options.sizePreset = preset } label: {
-                        PresetButtonLabel(
-                            icon: preset.icon,
-                            title: preset.rawValue,
-                            subtitle: "\(Int(preset.size.width))x\(Int(preset.size.height))"
-                        )
-                        .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                        .foregroundStyle(selected ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.plain)
-                    .animation(.spring(response: 0.2), value: options.sizePreset)
-                }
-            }
-        }
-    }
 
-    private var textColorSection: some View {
-        sectionCard(title: "Text Color", icon: "textformat") {
-            VStack(spacing: 12) {
-                // Auto toggle
-                Toggle(isOn: $useAutoTextColor) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "wand.and.stars")
-                            .font(.system(size: 14))
-                        Text("Auto (based on background)")
-                            .font(.system(size: 14))
-                    }
-                }
-                .tint(Color.accentColor)
-                .onChange(of: useAutoTextColor) {
-                    if useAutoTextColor {
-                        textColor = nil
-                    } else if textColor == nil {
-                        textColor = .white
-                    }
-                    regenerateImage()
-                }
 
-                if !useAutoTextColor {
-                    // Preset colors
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 8) {
-                            ForEach(Self.textColorPresets, id: \.self) { hex in
-                                Button {
-                                    if let c = Color(hex: hex) { textColor = c }
-                                } label: {
-                                    Circle()
-                                        .fill(Color(hex: hex) ?? .gray)
-                                        .frame(width: 32, height: 32)
-                                        .overlay(
-                                            Circle().stroke(.gray.opacity(0.4), lineWidth: 1)
-                                        )
-                                        .overlay(
-                                            textColorSelectionRing(hex: hex)
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
 
-                    HStack(spacing: 12) {
-                        ColorPicker("", selection: Binding(
-                            get: { textColor ?? .white },
-                            set: { textColor = $0 }
-                        ), supportsOpacity: false)
-                            .labelsHidden()
-                            .frame(width: 36, height: 36)
-                        Text("Custom color")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                }
-            }
-        }
-    }
 
-    @ViewBuilder
-    private func textColorSelectionRing(hex: String) -> some View {
-        if let currentHex = textColorHex, currentHex.uppercased() == hex.uppercased() {
-            Circle()
-                .stroke(Color.accentColor, lineWidth: 2.5)
-                .frame(width: 38, height: 38)
-        }
-    }
 
-    private var customTextSection: some View {
-        sectionCard(title: "Custom Text", icon: "character.cursor.ibeam") {
-            HStack(spacing: 8) {
-                Image(systemName: "text.below.photo")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20)
-                TextField("Subtitle text", text: $options.subtitleText)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 14))
-                    .submitLabel(.done)
-            }
-        }
-    }
 
-    private var headerStyleSection: some View {
-        sectionCard(title: "Header Style", icon: "text.alignleft") {
-            HStack(spacing: 8) {
-                ForEach(HeaderStyle.allCases) { style in
-                    let selected = options.headerStyle == style
-                    Button { options.headerStyle = style } label: {
-                        SimplePresetButtonLabel(icon: style.icon, title: style.rawValue)
-                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                            .foregroundStyle(selected ? .white : .primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
 
-    private var fontStyleSection: some View {
-        sectionCard(title: "Font", icon: "textformat") {
-            HStack(spacing: 8) {
-                ForEach(FontStyle.allCases) { style in
-                    let selected = options.fontStyle == style
-                    Button { options.fontStyle = style } label: {
-                        SimplePresetButtonLabel(icon: style.icon, title: style.rawValue, iconSize: 14, titleSize: 10)
-                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                            .foregroundStyle(selected ? .white : .primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
 
-    private var dateFormatSection: some View {
-        sectionCard(title: "Date Format", icon: "calendar.badge.clock") {
-            HStack(spacing: 6) {
-                ForEach(DateFormatStyle.allCases) { style in
-                    let selected = options.dateFormatStyle == style
-                    Button { options.dateFormatStyle = style } label: {
-                        VStack(spacing: 3) {
-                            Image(systemName: style.icon)
-                                .font(.system(size: 13))
-                            Text(style.rawValue)
-                                .font(.system(size: 9, weight: .semibold))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                        .foregroundStyle(selected ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
 
-    private var fineTuningSection: some View {
-        sectionCard(title: "Fine Tuning", icon: "slider.horizontal.3") {
-            VStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Overlay Darkness")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(Int(options.scrimIntensity * 100))%")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $options.scrimIntensity, in: 0...1.0, step: 0.05)
-                        .tint(Color.accentColor)
-                }
 
-                Divider()
 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Card Spacing")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(options.gridGap < 0.3 ? "None" : options.gridGap > 1.5 ? "Wide" : "Normal")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $options.gridGap, in: 0...2.0, step: 0.1)
-                        .tint(Color.accentColor)
-                }
 
-                Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Show Padding")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(options.showPadding < 0.6 ? "Tight" : options.showPadding > 1.4 ? "Loose" : "Normal")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $options.showPadding, in: 0.2...2.0, step: 0.1)
-                        .tint(Color.accentColor)
-                }
-            }
-        }
-    }
-
-    private var gridColumnsSection: some View {
-        sectionCard(title: "Grid Columns", icon: "square.grid.2x2") {
-            HStack(spacing: 8) {
-                ForEach([0, 1, 2, 3, 4], id: \.self) { col in
-                    let selected = options.columns == col
-                    Button { options.columns = col } label: {
-                        Text(col == 0 ? "Auto" : "\(col)")
-                            .font(.system(size: 13, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                            .foregroundStyle(selected ? .white : .primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private var rowCountSection: some View {
-        sectionCard(title: "Max Shows", icon: "list.number") {
-            HStack(spacing: 8) {
-                ForEach([0, 3, 5, 8, 10, 15], id: \.self) { count in
-                    let selected = options.maxRows == count
-                    Button { options.maxRows = count } label: {
-                        Text(count == 0 ? "All" : "\(count)")
-                            .font(.system(size: 13, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(selected ? Color.accentColor : Color.secondary.opacity(0.1))
-                            .foregroundStyle(selected ? .white : .primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private var togglesSection: some View {
-        sectionCard(title: "Include", icon: "checklist") {
-            TogglesList(options: $options)
-        }
-    }
 
     private var previewSection: some View {
         sectionCard(title: "Preview", icon: "photo") {
@@ -472,11 +174,11 @@ struct ShareLinkSheetView: View {
     private func regenerateImage() {
         renderTask?.cancel()
         let name  = performerName.isEmpty ? "My Shows" : performerName
-        var opts  = options
-        opts.accentHex = accentHex
-        opts.textColorHex = textColorHex
+        let opts  = options
         // Snapshot Show managed objects on the main thread (safe).
-        let snapshots = shows.map { ShowSnapshot(from: $0) }
+        let now = Date()
+        let upcomingShows = shows.filter { ($0.date ?? now) >= now }
+        let snapshots = upcomingShows.map { ShowSnapshot(from: $0) }
         renderTask = Task.detached(priority: .userInitiated) {
             guard !Task.isCancelled else { return }
             let img = ShareImageGenerator.generate(snapshots: snapshots, performerName: name, options: opts)
@@ -637,7 +339,6 @@ private struct OptionChangeHandlers: ViewModifier {
             .onChange(of: options.subtitleText)    { regenerate() }
 
         return group2
-            .onChange(of: options.dateFormatStyle) { regenerate() }
             .onChange(of: options.scrimIntensity)  { regenerate() }
             .onChange(of: options.gridGap)         { regenerate() }
             .onChange(of: options.showPadding)     { regenerate() }
@@ -655,5 +356,3 @@ private extension View {
 #Preview {
     ShareLinkSheetView(userID: "preview", shows: [])
 }
-
- 

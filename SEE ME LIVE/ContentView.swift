@@ -29,6 +29,8 @@ struct ContentView: View {
     @State private var fabScale: CGFloat = 1.0
     @State private var toastMessage: String?
     @State private var showToast = false
+    @State private var isPresentingDateSizeSheet = false
+    @AppStorage("showDateTextSize") private var showDateTextSize: Double = 12
 
     private let userID = UserIdentityService.shared.userID
 
@@ -82,6 +84,19 @@ struct ContentView: View {
                 if isFirstLaunch {
                     UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
                 }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        isPresentingDateSizeSheet = true
+                    } label: {
+                        Image(systemName: "textformat.size")
+                    }
+                    .accessibilityLabel("Adjust date text size")
+                }
+            }
+            .sheet(isPresented: $isPresentingDateSizeSheet) {
+                DateTextSizeSheet(showDateTextSize: $showDateTextSize)
             }
         }
     }
@@ -219,6 +234,7 @@ struct ContentView: View {
 
 struct ShowCardView: View {
     @ObservedObject var show: Show
+    @AppStorage("showDateTextSize") private var showDateTextSize: Double = 12
 
     var body: some View {
         HStack(spacing: 12) {
@@ -240,7 +256,7 @@ struct ShowCardView: View {
             // Event details
             VStack(alignment: .leading, spacing: 4) {
                 Text(show.dateFormatted)
-                    .font(.system(size: 12))
+                    .font(.system(size: showDateTextSize))
                     .foregroundStyle(.secondary)
                 
                 Text(show.titleOrEmpty)

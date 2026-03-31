@@ -35,69 +35,215 @@ struct HomeScreenView: View {
     @State private var showToEdit: Show?
     @State private var toastMessage: String?
     @State private var showToast = false
+    @State private var isPresentingDateSizeSheet = false
     @State private var isPresentingShareSheet = false
     @State private var headerAppeared = false
     @State private var calendarMonth: Date = Date()
     @State private var selectedCalendarDate: Date?
+    @State private var isRefreshing = false
+    @State private var refreshRotation: Double = 0
+    @State private var isLoading = true
+    @State private var searchText = ""
+    @State private var isSearching = false
+    @State private var emptyStateAnimated = false
+    @AppStorage("showDateTextSize") private var showDateTextSize: Double = 12
 
     private let userID = UserIdentityService.shared.userID
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Filtered Shows (Search)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var filteredUpcomingShows: [Show] {
+        guard !searchText.isEmpty else { return Array(upcomingShows) }
+        return upcomingShows.filter { matchesSearch($0) }
+    }
+
+    private var filteredPastShows: [Show] {
+        guard !searchText.isEmpty else { return Array(pastShows) }
+        return pastShows.filter { matchesSearch($0) }
+    }
+
+    private func matchesSearch(_ show: Show) -> Bool {
+        let query = searchText.lowercased()
+        return show.titleOrEmpty.lowercased().contains(query) ||
+               show.venueOrEmpty.lowercased().contains(query) ||
+               show.roleOrEmpty.lowercased().contains(query) ||
+               show.notesOrEmpty.lowercased().contains(query)
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Skeleton Loading View
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var skeletonLoadingView: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                // Skeleton Hero Header
+                VStack(alignment: .leading, spacing: 6) {
+                    SkeletonView(width: 120, height: 14)
+                    SkeletonView(width: 200, height: 34)
+                    SkeletonView(width: 100, height: 15)
+                        .padding(.top, 2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
+
+                // Skeleton Spotlight Card
+                VStack(spacing: 0) {
+                    SkeletonView(height: 4)
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            SkeletonView(width: 80, height: 20)
+                            Spacer()
+                            SkeletonView(width: 60, height: 24)
+                        }
+                        HStack(alignment: .top, spacing: 16) {
+                            SkeletonView(width: 52, height: 50)
+                            VStack(alignment: .leading, spacing: 6) {
+                                SkeletonView(width: 180, height: 20)
+                                SkeletonView(width: 120, height: 13)
+                                SkeletonView(width: 80, height: 13)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(20)
+                }
+                .background(Color("CardBackground"))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
+
+                // Skeleton Quick Actions
+                HStack(spacing: 12) {
+                    SkeletonView(height: 90)
+                    SkeletonView(height: 90)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
+
+                // Skeleton Calendar
+                VStack(alignment: .leading, spacing: 14) {
+                    SkeletonView(width: 80, height: 12)
+                        .padding(.leading, 4)
+                    SkeletonView(height: 280)
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Search Empty State
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var searchEmptyState: some View {
+        VStack(spacing: 20) {
+            Spacer(minLength: 40)
+
+            ZStack {
+                Circle()
+                    .fill(Color.secondary.opacity(0.08))
+                    .frame(width: 90, height: 90)
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 8) {
+                Text("No Results")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                Text("No shows match \"\(searchText)\"")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Spacer(minLength: 40)
+        }
+    }
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 Color("AppBackground").ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 0) {
+                if isLoading {
+                    skeletonLoadingView
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
 
-                        // ── Hero Header ──
-                        heroHeader
-                            .padding(.horizontal, 20)
-                            .padding(.top, 8)
-                            .padding(.bottom, 32)
+                            // ── Search Bar ──
+                            if !allShows.isEmpty {
+                                searchBar
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 8)
+                                    .padding(.bottom, 12)
+                            }
 
-                        // ── Next Show Spotlight ──
-                        if let next = upcomingShows.first {
-                            spotlightCard(show: next)
+                            // ── Hero Header ──
+                            heroHeader
                                 .padding(.horizontal, 20)
-                                .padding(.bottom, 28)
-                        }
+                                .padding(.top, 8)
+                                .padding(.bottom, 32)
 
-                        // ── Quick Actions ──
-                        quickActions
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 32)
+                            // ── Next Show Spotlight ──
+                            if let next = filteredUpcomingShows.first {
+                                spotlightCard(show: next)
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 28)
+                            }
 
-                        // ── Calendar ──
-                        calendarSection
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 32)
-
-                        // ── Upcoming Shows ──
-                        if upcomingShows.count > 0 {
-                            upcomingSection
+                            // ── Quick Actions ──
+                            quickActions
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, 32)
-                        }
 
-                        // ── Past Shows ──
-                        if !pastShows.isEmpty {
-                            pastShowsSection
+                            // ── Calendar ──
+                            calendarSection
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, 32)
-                        }
 
-                        // ── Empty State ──
-                        if allShows.isEmpty {
-                            emptyState
-                                .padding(.horizontal, 20)
-                                .padding(.bottom, 32)
-                        }
+                            // ── Upcoming Shows ──
+                            if filteredUpcomingShows.count > 0 {
+                                upcomingSection
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 32)
+                            }
 
-                        Spacer(minLength: 100)
+                            // ── Past Shows ──
+                            if !filteredPastShows.isEmpty {
+                                pastShowsSection
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 32)
+                            }
+
+                            // ── Empty State ──
+                            if allShows.isEmpty {
+                                emptyState
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 32)
+                            }
+
+                            // ── Search Empty State ──
+                            if !searchText.isEmpty && filteredUpcomingShows.isEmpty && filteredPastShows.isEmpty {
+                                searchEmptyState
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 32)
+                            }
+
+                            Spacer(minLength: 100)
+                        }
                     }
+                    .scrollIndicators(.hidden)
                 }
-                .scrollIndicators(.hidden)
 
                 // ── Floating Action Button ──
                 addButton
@@ -125,21 +271,95 @@ struct HomeScreenView: View {
                 ShowEditorView(showToEdit: showToEdit)
                     .environment(\.managedObjectContext, viewContext)
             }
-            .sheet(isPresented: $isPresentingShareSheet) {
-                ShareLinkSheetView(userID: userID, shows: Array(allShows), initialTab: 0)
+            .fullScreenCover(isPresented: $isPresentingShareSheet) {
+                ShareImageEditorView(
+                    shows: Array(allShows),
+                    performerName: CalendarDisplayOptions.load().performerName
+                )
             }
             .task {
                 await performBackgroundSync()
+                withAnimation(.easeOut(duration: 0.3)) {
+                    isLoading = false
+                }
             }
             .refreshable {
-                await performBackgroundSync()
+                await withCheckedContinuation { continuation in
+                    isRefreshing = true
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    
+                    Task {
+                        await performBackgroundSync()
+                        
+                        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s minimum feedback
+                        
+                        await MainActor.run {
+                            isRefreshing = false
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            continuation.resume()
+                        }
+                    }
+                }
             }
             .onAppear {
                 withAnimation(.easeOut(duration: 0.6).delay(0.1)) {
                     headerAppeared = true
                 }
             }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        isPresentingDateSizeSheet = true
+                    } label: {
+                        Image(systemName: "textformat.size")
+                    }
+                    .accessibilityLabel("Adjust date text size")
+                }
+            }
+            .sheet(isPresented: $isPresentingDateSizeSheet) {
+                DateTextSizeSheet(showDateTextSize: $showDateTextSize)
+            }
         }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Search Bar
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            TextField("Search shows...", text: $searchText)
+                .font(.system(size: 16))
+                .foregroundStyle(.primary)
+                .autocorrectionDisabled()
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isSearching = true
+                    }
+                }
+
+            if !searchText.isEmpty {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        searchText = ""
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color("CardBackground"))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.04),
+                radius: 8, x: 0, y: 2)
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -315,6 +535,7 @@ struct HomeScreenView: View {
                 // Month navigation
                 HStack {
                     Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         withAnimation(.easeInOut(duration: 0.2)) {
                             calendarMonth = Calendar.current.date(byAdding: .month, value: -1, to: calendarMonth) ?? calendarMonth
                         }
@@ -334,6 +555,7 @@ struct HomeScreenView: View {
                     Spacer()
 
                     Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         withAnimation(.easeInOut(duration: 0.2)) {
                             calendarMonth = Calendar.current.date(byAdding: .month, value: 1, to: calendarMonth) ?? calendarMonth
                         }
@@ -534,7 +756,7 @@ struct HomeScreenView: View {
                 .tracking(1)
                 .padding(.leading, 4)
 
-            LazyVStack(spacing: 0) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
                 ForEach(Array(upcomingShows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {
@@ -545,11 +767,6 @@ struct HomeScreenView: View {
                         ShowRow(show: show)
                     }
                     .buttonStyle(RowPress())
-
-                    if idx < upcomingShows.count - 1 {
-                        Divider()
-                            .padding(.leading, 68)
-                    }
                 }
             }
             .background(Color("CardBackground"))
@@ -571,7 +788,7 @@ struct HomeScreenView: View {
                 .tracking(1)
                 .padding(.leading, 4)
 
-            LazyVStack(spacing: 0) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
                 ForEach(Array(pastShows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {
@@ -583,11 +800,6 @@ struct HomeScreenView: View {
                             .opacity(0.7)
                     }
                     .buttonStyle(RowPress())
-
-                    if idx < pastShows.count - 1 {
-                        Divider()
-                            .padding(.leading, 68)
-                    }
                 }
             }
             .background(Color("CardBackground"))
@@ -606,24 +818,53 @@ struct HomeScreenView: View {
             Spacer(minLength: 60)
 
             ZStack {
+                // Animated pulse rings
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .stroke(Color.accentColor.opacity(0.15), lineWidth: 1)
+                        .frame(width: 110 + CGFloat(i * 30), height: 110 + CGFloat(i * 30))
+                        .scaleEffect(emptyStateAnimated ? 1.1 : 0.9)
+                        .opacity(emptyStateAnimated ? 0.3 : 0.6)
+                        .animation(
+                            .easeInOut(duration: 2.0)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.3),
+                            value: emptyStateAnimated
+                        )
+                }
+                
                 Circle()
                     .fill(Color.accentColor.opacity(0.08))
                     .frame(width: 110, height: 110)
+                    .scaleEffect(emptyStateAnimated ? 1.0 : 0.95)
+                    .animation(.spring(response: 0.8, dampingFraction: 0.6), value: emptyStateAnimated)
+                
                 Image(systemName: "music.mic")
                     .font(.system(size: 40, weight: .light))
                     .foregroundStyle(Color.accentColor.opacity(0.7))
+                    .scaleEffect(emptyStateAnimated ? 1.0 : 0.8)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.5).delay(0.2), value: emptyStateAnimated)
+            }
+            .onAppear {
+                emptyStateAnimated = true
             }
 
             VStack(spacing: 10) {
                 Text("No Shows Yet")
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(.primary)
+                    .opacity(emptyStateAnimated ? 1 : 0)
+                    .offset(y: emptyStateAnimated ? 0 : 10)
+                    .animation(.easeOut(duration: 0.5).delay(0.3), value: emptyStateAnimated)
 
                 Text("Add your first gig to get started.\nYour lineup will appear here.")
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
+                    .opacity(emptyStateAnimated ? 1 : 0)
+                    .offset(y: emptyStateAnimated ? 0 : 10)
+                    .animation(.easeOut(duration: 0.5).delay(0.4), value: emptyStateAnimated)
             }
 
             Button {
@@ -643,6 +884,9 @@ struct HomeScreenView: View {
                     )
             }
             .buttonStyle(CardPress())
+            .opacity(emptyStateAnimated ? 1 : 0)
+            .offset(y: emptyStateAnimated ? 0 : 20)
+            .animation(.easeOut(duration: 0.5).delay(0.5), value: emptyStateAnimated)
 
             Spacer(minLength: 60)
         }
@@ -669,6 +913,8 @@ struct HomeScreenView: View {
                 )
         }
         .buttonStyle(FABStyle())
+        .accessibilityLabel("Add new show")
+        .accessibilityHint("Opens the show editor to create a new show")
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -789,6 +1035,7 @@ private struct CalendarDayCell: View {
 
 private struct ShowRow: View {
     let show: Show
+    @AppStorage("showDateTextSize") private var showDateTextSize: Double = 12
 
     var body: some View {
         HStack(spacing: 14) {
@@ -824,7 +1071,7 @@ private struct ShowRow: View {
                     }
 
                     Text(timeString(from: show.dateOrNow))
-                        .font(.system(size: 13))
+                        .font(.system(size: showDateTextSize))
                         .foregroundStyle(.tertiary)
                 }
             }
@@ -973,4 +1220,47 @@ private struct AllShowsListView: View {
 #Preview {
     HomeScreenView()
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MARK: - Skeleton View
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+private struct SkeletonView: View {
+    var width: CGFloat? = nil
+    var height: CGFloat = 20
+    
+    @State private var isAnimating = false
+    
+    var body: some View {
+        RoundedRectangle(cornerRadius: height / 3, style: .continuous)
+            .fill(Color.secondary.opacity(0.12))
+            .frame(width: width, height: height)
+            .frame(maxWidth: width == nil ? .infinity : nil)
+            .overlay(
+                GeometryReader { geo in
+                    RoundedRectangle(cornerRadius: height / 3, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.clear,
+                                    Color.white.opacity(0.2),
+                                    Color.clear
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * 0.6)
+                        .offset(x: isAnimating ? geo.size.width : -geo.size.width * 0.6)
+                }
+                .clipped()
+            )
+            .clipShape(RoundedRectangle(cornerRadius: height / 3, style: .continuous))
+            .onAppear {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    isAnimating = true
+                }
+            }
+    }
 }
