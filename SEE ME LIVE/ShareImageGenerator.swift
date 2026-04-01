@@ -650,32 +650,47 @@ enum ShareImageGenerator {
         // Text content (right of date badge)
         let textX = options.showDate ? cardX + badgeW + innerPad : cardX + innerPad
         let textW = options.showDate ? max(1, cardW - badgeW - innerPad * 1.5) : max(1, cardW - innerPad * 2)
+        
+        // Calculate available height for text content
+        let textStartY = cardY + innerPad * 0.5
+        let textAvailableH = cardH - innerPad
+        
+        // Count how many elements we need to show
+        var elementCount = 1 // Title always shown
+        if options.showVenue && !show.venueOrEmpty.isEmpty { elementCount += 1 }
+        if options.showTime { elementCount += 1 }
+        
+        // Distribute space - title gets more space
+        let titleRatio: CGFloat = 0.45
+        let detailRatio: CGFloat = (1.0 - titleRatio) / CGFloat(max(1, elementCount - 1))
+        
+        let titleMaxH = textAvailableH * titleRatio
+        let detailMaxH = textAvailableH * detailRatio
+        
+        var currentY = textStartY
 
-        // Title
+        // Title - adaptive sizing
         let titleFont = resolvedFont(size: titleSz, weight: .bold, style: fontSt)
-        let titleY = cardY + cardH * 0.18
-        drawText(show.titleOrEmpty, at: CGPoint(x: textX, y: titleY),
-                 font: titleFont, color: textColor,
-                 maxWidth: textW, canvasHeight: cardRect.maxY,
-                 forceNoTruncation: true)
+        let titleH = drawTextReturningHeight(show.titleOrEmpty, at: CGPoint(x: textX, y: currentY),
+                                              font: titleFont, color: textColor,
+                                              maxWidth: textW, maxHeight: titleMaxH, maxLines: 2)
+        currentY += titleH + innerPad * 0.3
 
-        // Venue
-        var nextY = titleY + titleSz * 1.3
+        // Venue - adaptive sizing
         if options.showVenue, !show.venueOrEmpty.isEmpty {
             let venueFont = resolvedFont(size: detailSz, weight: .medium, style: fontSt)
-            drawText(show.venueOrEmpty, at: CGPoint(x: textX, y: nextY),
-                     font: venueFont, color: subColor,
-                     maxWidth: textW, canvasHeight: cardRect.maxY,
-                     forceNoTruncation: true)
-            nextY += detailSz * 1.3
+            let venueH = drawTextReturningHeight(show.venueOrEmpty, at: CGPoint(x: textX, y: currentY),
+                                                  font: venueFont, color: subColor,
+                                                  maxWidth: textW, maxHeight: detailMaxH, maxLines: 1)
+            currentY += venueH + innerPad * 0.2
         }
 
         // Time
         if options.showTime {
             let timeFont = resolvedFont(size: detailSz * 0.9, weight: .regular, style: fontSt)
-            drawText(show.timeString, at: CGPoint(x: textX, y: nextY),
-                     font: timeFont, color: subColor.withAlphaComponent(0.75),
-                     maxWidth: textW, canvasHeight: cardRect.maxY)
+            _ = drawTextReturningHeight(show.timeString, at: CGPoint(x: textX, y: currentY),
+                                        font: timeFont, color: subColor.withAlphaComponent(0.75),
+                                        maxWidth: textW, maxHeight: detailMaxH, maxLines: 1)
         }
     }
 
@@ -687,36 +702,49 @@ enum ShareImageGenerator {
         let cardX = cardRect.minX
         let cardY = cardRect.minY
         let cardW = cardRect.width
+        let cardH = cardRect.height
         
         let textX = cardX + innerPad
         let textW = max(1, cardW - innerPad * 2)
+        let textAvailableH = cardH - innerPad * 2
+        
+        // Count elements
+        var elementCount = 1 // Title
+        if options.showDate { elementCount += 1 }
+        if options.showVenue && !show.venueOrEmpty.isEmpty { elementCount += 1 }
+        
+        // Space distribution
+        let titleRatio: CGFloat = 0.5
+        let detailRatio: CGFloat = (1.0 - titleRatio) / CGFloat(max(1, elementCount - 1))
+        
+        let titleMaxH = textAvailableH * titleRatio
+        let detailMaxH = textAvailableH * detailRatio
+        
         var currentY = cardY + innerPad
 
         // Title
         let titleFont = resolvedFont(size: titleSz, weight: .bold, style: fontSt)
-        drawText(show.titleOrEmpty, at: CGPoint(x: textX, y: currentY),
-                 font: titleFont, color: textColor,
-                 maxWidth: textW, canvasHeight: cardRect.maxY,
-                 forceNoTruncation: true)
-        currentY += titleSz * 1.2
+        let titleH = drawTextReturningHeight(show.titleOrEmpty, at: CGPoint(x: textX, y: currentY),
+                                              font: titleFont, color: textColor,
+                                              maxWidth: textW, maxHeight: titleMaxH, maxLines: 2)
+        currentY += titleH + innerPad * 0.3
 
         // Date inline
         if options.showDate {
             let dateFont = resolvedFont(size: detailSz, weight: .medium, style: fontSt)
             let dateStr = "\(show.monthAbbrev) \(show.dayNumber)" + (options.showTime ? " · \(show.timeString)" : "")
-            drawText(dateStr, at: CGPoint(x: textX, y: currentY),
-                     font: dateFont, color: subColor,
-                     maxWidth: textW, canvasHeight: cardRect.maxY)
-            currentY += detailSz * 1.2
+            let dateH = drawTextReturningHeight(dateStr, at: CGPoint(x: textX, y: currentY),
+                                                 font: dateFont, color: subColor,
+                                                 maxWidth: textW, maxHeight: detailMaxH, maxLines: 1)
+            currentY += dateH + innerPad * 0.2
         }
 
         // Venue
         if options.showVenue, !show.venueOrEmpty.isEmpty {
             let venueFont = resolvedFont(size: detailSz * 0.9, weight: .regular, style: fontSt)
-            drawText(show.venueOrEmpty, at: CGPoint(x: textX, y: currentY),
-                     font: venueFont, color: subColor.withAlphaComponent(0.7),
-                     maxWidth: textW, canvasHeight: cardRect.maxY,
-                     forceNoTruncation: true)
+            _ = drawTextReturningHeight(show.venueOrEmpty, at: CGPoint(x: textX, y: currentY),
+                                        font: venueFont, color: subColor.withAlphaComponent(0.7),
+                                        maxWidth: textW, maxHeight: detailMaxH, maxLines: 1)
         }
     }
 
@@ -729,54 +757,62 @@ enum ShareImageGenerator {
         let cardX = cardRect.minX
         let cardY = cardRect.minY
         let cardW = cardRect.width
+        let cardH = cardRect.height
         
         let textW = max(1, cardW - innerPad * 2)
+        let textAvailableH = cardH - innerPad
+        
+        // Count elements for space distribution
+        var elementCount = 1 // Title always
+        if options.showDate { elementCount += 1 }
+        if options.showVenue && !show.venueOrEmpty.isEmpty { elementCount += 1 }
+        if options.showTime { elementCount += 1 }
+        
+        // Date gets more space if shown, title gets bulk of remaining
+        let dateRatio: CGFloat = options.showDate ? 0.35 : 0
+        let remainingRatio = 1.0 - dateRatio
+        let titleRatio: CGFloat = remainingRatio * 0.5
+        let detailRatio: CGFloat = remainingRatio * 0.25
+        
         var currentY = cardY + innerPad * 0.5
 
-        // Large date at top
+        // Large date at top (centered)
         if options.showDate {
-            let bigDateSz = dateSz * 2.5
+            let dateMaxH = textAvailableH * dateRatio
+            let bigDateSz = min(dateSz * 2.5, dateMaxH * 0.7)
             let dateFont = resolvedFont(size: bigDateSz, weight: .heavy, style: fontSt)
-            let dateStr = "\(show.monthAbbrev) \(show.dayNumber)" as NSString
-            let dateAttrs: [NSAttributedString.Key: Any] = [.font: dateFont, .foregroundColor: accent]
-            let dateSize = dateStr.size(withAttributes: dateAttrs)
-            UIGraphicsPushContext(ctx)
-            dateStr.draw(at: CGPoint(x: cardX + (cardW - dateSize.width) / 2, y: currentY), withAttributes: dateAttrs)
-            UIGraphicsPopContext()
-            currentY += bigDateSz * 1.1
+            let dateStr = "\(show.monthAbbrev) \(show.dayNumber)"
+            let dateH = drawTextReturningHeight(dateStr, at: CGPoint(x: cardX + innerPad, y: currentY),
+                                                 font: dateFont, color: accent,
+                                                 maxWidth: textW, maxHeight: dateMaxH, maxLines: 1, centered: true)
+            currentY += dateH + innerPad * 0.3
         }
 
         // Title centered
+        let titleMaxH = textAvailableH * titleRatio
         let titleFont = resolvedFont(size: titleSz, weight: .bold, style: fontSt)
-        let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont, .foregroundColor: textColor]
-        let titleStr = show.titleOrEmpty as NSString
-        let titleSize = titleStr.size(withAttributes: titleAttrs)
-        UIGraphicsPushContext(ctx)
-        titleStr.draw(at: CGPoint(x: cardX + (cardW - min(titleSize.width, textW)) / 2, y: currentY), withAttributes: titleAttrs)
-        UIGraphicsPopContext()
-        currentY += titleSz * 1.2
+        let titleH = drawTextReturningHeight(show.titleOrEmpty, at: CGPoint(x: cardX + innerPad, y: currentY),
+                                              font: titleFont, color: textColor,
+                                              maxWidth: textW, maxHeight: titleMaxH, maxLines: 2, centered: true)
+        currentY += titleH + innerPad * 0.2
 
         // Venue centered
         if options.showVenue, !show.venueOrEmpty.isEmpty {
+            let venueMaxH = textAvailableH * detailRatio
             let venueFont = resolvedFont(size: detailSz, weight: .medium, style: fontSt)
-            let venueAttrs: [NSAttributedString.Key: Any] = [.font: venueFont, .foregroundColor: subColor]
-            let venueStr = show.venueOrEmpty as NSString
-            let venueSize = venueStr.size(withAttributes: venueAttrs)
-            UIGraphicsPushContext(ctx)
-            venueStr.draw(at: CGPoint(x: cardX + (cardW - min(venueSize.width, textW)) / 2, y: currentY), withAttributes: venueAttrs)
-            UIGraphicsPopContext()
-            currentY += detailSz * 1.2
+            let venueH = drawTextReturningHeight(show.venueOrEmpty, at: CGPoint(x: cardX + innerPad, y: currentY),
+                                                  font: venueFont, color: subColor,
+                                                  maxWidth: textW, maxHeight: venueMaxH, maxLines: 1, centered: true)
+            currentY += venueH + innerPad * 0.2
         }
 
         // Time centered
         if options.showTime {
+            let timeMaxH = textAvailableH * detailRatio
             let timeFont = resolvedFont(size: detailSz * 0.9, weight: .regular, style: fontSt)
-            let timeAttrs: [NSAttributedString.Key: Any] = [.font: timeFont, .foregroundColor: subColor.withAlphaComponent(0.7)]
-            let timeStr = show.timeString as NSString
-            let timeSize = timeStr.size(withAttributes: timeAttrs)
-            UIGraphicsPushContext(ctx)
-            timeStr.draw(at: CGPoint(x: cardX + (cardW - timeSize.width) / 2, y: currentY), withAttributes: timeAttrs)
-            UIGraphicsPopContext()
+            _ = drawTextReturningHeight(show.timeString, at: CGPoint(x: cardX + innerPad, y: currentY),
+                                        font: timeFont, color: subColor.withAlphaComponent(0.7),
+                                        maxWidth: textW, maxHeight: timeMaxH, maxLines: 1, centered: true)
         }
     }
 
@@ -789,36 +825,50 @@ enum ShareImageGenerator {
         let cardX = cardRect.minX
         let cardY = cardRect.minY
         let cardW = cardRect.width
+        let cardH = cardRect.height
         
         let textX = cardX + innerPad * 0.5
         let textW = max(1, cardW - innerPad)
+        let textAvailableH = cardH - innerPad
+        
+        // Count elements
+        var elementCount = 1 // Title
+        if options.showDate { elementCount += 1 }
+        if options.showVenue && !show.venueOrEmpty.isEmpty { elementCount += 1 }
+        
+        // Space distribution for compact
+        let dateRatio: CGFloat = options.showDate ? 0.2 : 0
+        let titleRatio: CGFloat = 0.45
+        let venueRatio: CGFloat = 0.25
+        
         var currentY = cardY + innerPad * 0.3
 
         // Date small inline
         if options.showDate {
+            let dateMaxH = textAvailableH * dateRatio
             let dateFont = resolvedFont(size: monthSz, weight: .bold, style: fontSt)
             let dateStr = "\(show.monthAbbrev) \(show.dayNumber)"
-            drawText(dateStr, at: CGPoint(x: textX, y: currentY),
-                     font: dateFont, color: accent,
-                     maxWidth: textW, canvasHeight: cardRect.maxY)
-            currentY += monthSz * 1.1
+            let dateH = drawTextReturningHeight(dateStr, at: CGPoint(x: textX, y: currentY),
+                                                 font: dateFont, color: accent,
+                                                 maxWidth: textW, maxHeight: dateMaxH, maxLines: 1)
+            currentY += dateH + innerPad * 0.15
         }
 
         // Title
+        let titleMaxH = textAvailableH * titleRatio
         let titleFont = resolvedFont(size: titleSz * 0.9, weight: .bold, style: fontSt)
-        drawText(show.titleOrEmpty, at: CGPoint(x: textX, y: currentY),
-                 font: titleFont, color: textColor,
-                 maxWidth: textW, canvasHeight: cardRect.maxY,
-                 forceNoTruncation: true)
-        currentY += titleSz * 1.0
+        let titleH = drawTextReturningHeight(show.titleOrEmpty, at: CGPoint(x: textX, y: currentY),
+                                              font: titleFont, color: textColor,
+                                              maxWidth: textW, maxHeight: titleMaxH, maxLines: 2)
+        currentY += titleH + innerPad * 0.1
 
         // Venue (smaller)
         if options.showVenue, !show.venueOrEmpty.isEmpty {
+            let venueMaxH = textAvailableH * venueRatio
             let venueFont = resolvedFont(size: detailSz * 0.8, weight: .regular, style: fontSt)
-            drawText(show.venueOrEmpty, at: CGPoint(x: textX, y: currentY),
-                     font: venueFont, color: subColor.withAlphaComponent(0.7),
-                     maxWidth: textW, canvasHeight: cardRect.maxY,
-                     forceNoTruncation: true)
+            _ = drawTextReturningHeight(show.venueOrEmpty, at: CGPoint(x: textX, y: currentY),
+                                        font: venueFont, color: subColor.withAlphaComponent(0.7),
+                                        maxWidth: textW, maxHeight: venueMaxH, maxLines: 1)
         }
     }
 
@@ -937,31 +987,99 @@ enum ShareImageGenerator {
 
     private static func drawText(_ text: String, at origin: CGPoint, font: UIFont,
                                   color: UIColor, maxWidth: CGFloat, canvasHeight: CGFloat,
-                                  lineSpacing: CGFloat = 0, forceNoTruncation: Bool = false) {
+                                  lineSpacing: CGFloat = 0, forceNoTruncation: Bool = false,
+                                  maxLines: Int = 2, centered: Bool = false) {
+        guard !text.isEmpty else { return }
+        
         let drawWidth = max(1, maxWidth)
         let drawHeight = max(1, canvasHeight - origin.y)
+        
         let ps = NSMutableParagraphStyle()
         ps.lineSpacing = lineSpacing
-        if forceNoTruncation {
-            ps.lineBreakMode = .byWordWrapping
-        } else {
-            ps.lineBreakMode = .byTruncatingTail
+        ps.lineBreakMode = forceNoTruncation ? .byWordWrapping : .byTruncatingTail
+        if centered {
+            ps.alignment = .center
         }
+        
         var usedFont = font
+        var fontSize = font.pointSize
+        let minFontSize: CGFloat = max(10, font.pointSize * 0.4) // Don't go below 40% of original or 10pt
+        
+        // Calculate the maximum height we want (based on maxLines)
+        let singleLineHeight = font.lineHeight
+        let maxAllowedHeight = min(drawHeight, singleLineHeight * CGFloat(maxLines) + lineSpacing * CGFloat(maxLines - 1))
+        
         var attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: ps])
-        var bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: drawHeight), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
-        // If forceNoTruncation and text doesn't fit, reduce font size until it fits
-        if forceNoTruncation && (bounding.height > drawHeight || bounding.width > drawWidth) {
-            var fontSize = font.pointSize
-            let minFontSize: CGFloat = 8
-            while (bounding.height > drawHeight || bounding.width > drawWidth) && fontSize > minFontSize {
-                fontSize -= 1
+        var bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude), 
+                                                options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+        
+        // Adaptive scaling: reduce font size if text doesn't fit
+        if forceNoTruncation {
+            while (bounding.height > maxAllowedHeight || bounding.width > drawWidth) && fontSize > minFontSize {
+                fontSize -= 0.5
                 usedFont = font.withSize(fontSize)
-                attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: ps])
-                bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: drawHeight), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+                let newPs = NSMutableParagraphStyle()
+                newPs.lineSpacing = lineSpacing * (fontSize / font.pointSize)
+                newPs.lineBreakMode = .byWordWrapping
+                if centered { newPs.alignment = .center }
+                attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: newPs])
+                bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude), 
+                                                    options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
             }
         }
-        attrString.draw(in: CGRect(x: origin.x, y: origin.y, width: drawWidth, height: drawHeight))
+        
+        // Draw the text
+        let drawRect = CGRect(x: origin.x, y: origin.y, width: drawWidth, height: min(bounding.height + 4, drawHeight))
+        UIGraphicsPushContext(UIGraphicsGetCurrentContext()!)
+        attrString.draw(in: drawRect)
+        UIGraphicsPopContext()
+    }
+    
+    /// Draws text and returns the actual height used
+    private static func drawTextReturningHeight(_ text: String, at origin: CGPoint, font: UIFont,
+                                                 color: UIColor, maxWidth: CGFloat, maxHeight: CGFloat,
+                                                 lineSpacing: CGFloat = 0, maxLines: Int = 2,
+                                                 centered: Bool = false) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        
+        let drawWidth = max(1, maxWidth)
+        
+        let ps = NSMutableParagraphStyle()
+        ps.lineSpacing = lineSpacing
+        ps.lineBreakMode = .byWordWrapping
+        if centered { ps.alignment = .center }
+        
+        var usedFont = font
+        var fontSize = font.pointSize
+        let minFontSize: CGFloat = max(10, font.pointSize * 0.4)
+        
+        let singleLineHeight = font.lineHeight
+        let maxAllowedHeight = min(maxHeight, singleLineHeight * CGFloat(maxLines) + lineSpacing * CGFloat(maxLines - 1))
+        
+        var attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: ps])
+        var bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude),
+                                                options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+        
+        // Scale down if needed
+        while (bounding.height > maxAllowedHeight) && fontSize > minFontSize {
+            fontSize -= 0.5
+            usedFont = font.withSize(fontSize)
+            let newPs = NSMutableParagraphStyle()
+            newPs.lineSpacing = lineSpacing * (fontSize / font.pointSize)
+            newPs.lineBreakMode = .byWordWrapping
+            if centered { newPs.alignment = .center }
+            attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: newPs])
+            bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude),
+                                                options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+        }
+        
+        let finalHeight = min(bounding.height, maxAllowedHeight)
+        let drawRect = CGRect(x: origin.x, y: origin.y, width: drawWidth, height: finalHeight + 2)
+        UIGraphicsPushContext(UIGraphicsGetCurrentContext()!)
+        attrString.draw(in: drawRect)
+        UIGraphicsPopContext()
+        
+        return finalHeight
     }
 }
 
