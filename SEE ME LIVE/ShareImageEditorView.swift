@@ -38,6 +38,8 @@ struct ShareImageEditorView: View {
     @State private var selectedOverlayID: UUID?
     @State private var newOverlayText: String = ""
     @State private var showAddTextSheet = false
+    @State private var showTextStyleSheet = false
+    @State private var editingOverlayIndex: Int?
 
     // Colors
     @State private var accentColor: Color = Color("AccentColor")
@@ -75,6 +77,26 @@ struct ShareImageEditorView: View {
         ("#2C3E50", "#4CA1AF", "Ocean"),
         ("#FF416C", "#FF4B2B", "Sunset"),
         ("#141E30", "#243B55", "Royal")
+    ]
+    
+    private static let fontWeights: [(weight: String, label: String)] = [
+        ("light", "Light"),
+        ("regular", "Regular"),
+        ("medium", "Medium"),
+        ("semibold", "Semibold"),
+        ("bold", "Bold"),
+        ("heavy", "Heavy"),
+        ("black", "Black")
+    ]
+    
+    private static let fontNames: [(name: String, label: String)] = [
+        ("System", "Default"),
+        ("Georgia", "Serif"),
+        ("Courier New", "Mono"),
+        ("Futura", "Modern"),
+        ("Didot", "Elegant"),
+        ("Marker Felt", "Casual"),
+        ("Copperplate", "Classic")
     ]
 
     // MARK: - Body
@@ -158,6 +180,18 @@ struct ShareImageEditorView: View {
                 regeneratePreview()
             }
             .presentationDetents([.height(200)])
+        }
+        .sheet(isPresented: $showTextStyleSheet) {
+            if let idx = editingOverlayIndex, idx < overlays.count {
+                TextStyleSheet(
+                    overlay: $overlays[idx],
+                    presetColors: Self.presetColors,
+                    fontWeights: Self.fontWeights,
+                    fontNames: Self.fontNames,
+                    onUpdate: { regeneratePreviewDebounced() }
+                )
+                .presentationDetents([.medium, .large])
+            }
         }
     }
 
@@ -574,6 +608,7 @@ struct ShareImageEditorView: View {
 
     private var textPanel: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Add new text button
             Button {
                 showAddTextSheet = true
             } label: {
@@ -613,39 +648,75 @@ struct ShareImageEditorView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
             } else {
+                // List of overlays with edit buttons
                 ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
-                    overlayRow(idx: idx, overlay: overlay)
+                    overlayEditRow(idx: idx, overlay: overlay)
                 }
             }
         }
     }
 
-    private func overlayRow(idx: Int, overlay: TextOverlay) -> some View {
-        HStack {
-            Text(overlay.text)
-                .font(.system(size: 15, weight: .medium))
-                .lineLimit(1)
-                .foregroundStyle(.white)
-            
-            Spacer()
-            
-            Button {
-                overlays.remove(at: idx)
-                if selectedOverlayID == overlay.id { selectedOverlayID = nil }
-                regeneratePreview()
-            } label: {
-                Image(systemName: "trash.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.red.opacity(0.8))
+    private func overlayEditRow(idx: Int, overlay: TextOverlay) -> some View {
+        VStack(spacing: 0) {
+            // Main row
+            HStack(spacing: 12) {
+                // Preview badge
+                Text(overlay.text.prefix(3).uppercased())
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(Color(hex: overlay.colorHex) ?? .white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                
+                // Text and info
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(overlay.text)
+                        .font(.system(size: 15, weight: .medium))
+                        .lineLimit(1)
+                        .foregroundStyle(.white)
+                    Text("\(overlay.fontName) • \(overlay.fontWeight.capitalized)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                // Edit button
+                Button {
+                    editingOverlayIndex = idx
+                    showTextStyleSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 32, height: 32)
+                        .background(Color.accentColor.opacity(0.15), in: Circle())
+                }
+                .buttonStyle(.plain)
+                
+                // Delete button
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        overlays.remove(at: idx)
+                        if selectedOverlayID == overlay.id { selectedOverlayID = nil }
+                        regeneratePreview()
+                    }
+                } label: {
+                    Image(systemName: "trash.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.red.opacity(0.8))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(selectedOverlayID == overlay.id ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.06))
+            )
+            .onTapGesture { 
+                selectedOverlayID = overlay.id 
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(selectedOverlayID == overlay.id ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.06))
-        )
-        .onTapGesture { selectedOverlayID = overlay.id }
     }
 
     // MARK: - Helpers
@@ -869,6 +940,351 @@ private struct AddTextSheet: View {
             }
         }
         .onAppear { isFocused = true }
+    }
+}
+
+// MARK: - Text Style Sheet
+
+private struct TextStyleSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var overlay: TextOverlay
+    let presetColors: [String]
+    let fontWeights: [(weight: String, label: String)]
+    let fontNames: [(name: String, label: String)]
+    let onUpdate: () -> Void
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Live preview
+                    previewSection
+                    
+                    // Text content
+                    textSection
+                    
+                    // Font selection
+                    fontSection
+                    
+                    // Size and weight
+                    sizeWeightSection
+                    
+                    // Color
+                    colorSection
+                    
+                    // Effects
+                    effectsSection
+                    
+                    // Position
+                    positionSection
+                }
+                .padding(20)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Style Text")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+    
+    private var previewSection: some View {
+        VStack(spacing: 8) {
+            Text("Preview")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.black.opacity(0.9), Color.gray.opacity(0.4)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                
+                Text(overlay.text)
+                    .font(previewFont)
+                    .foregroundStyle(Color(hex: overlay.colorHex) ?? .white)
+                    .shadow(color: overlay.shadowEnabled ? .black.opacity(overlay.shadowOpacity) : .clear, radius: 4, y: 2)
+                    .padding()
+            }
+            .frame(height: 100)
+        }
+    }
+    
+    private var previewFont: Font {
+        let weight: Font.Weight = {
+            switch overlay.fontWeight.lowercased() {
+            case "light": return .light
+            case "regular": return .regular
+            case "medium": return .medium
+            case "semibold": return .semibold
+            case "bold": return .bold
+            case "heavy": return .heavy
+            case "black": return .black
+            default: return .bold
+            }
+        }()
+        if overlay.fontName == "System" {
+            return .system(size: 28, weight: weight)
+        } else {
+            return .custom(overlay.fontName, size: 28)
+        }
+    }
+    
+    private var textSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("TEXT")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+            
+            TextField("Your text", text: $overlay.text)
+                .font(.system(size: 17))
+                .padding(14)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .onChange(of: overlay.text) { onUpdate() }
+        }
+    }
+    
+    private var fontSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("FONT")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(fontNames, id: \.name) { font in
+                        Button {
+                            overlay.fontName = font.name
+                            onUpdate()
+                        } label: {
+                            Text(font.label)
+                                .font(font.name == "System" ? .system(size: 14, weight: .semibold) : .custom(font.name, size: 14))
+                                .foregroundStyle(overlay.fontName == font.name ? .white : .primary)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(
+                                    overlay.fontName == font.name ? Color.accentColor : Color(.secondarySystemGroupedBackground),
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+    
+    private var sizeWeightSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Font size
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("SIZE")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(overlay.fontSize * 100))%")
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                
+                Slider(value: $overlay.fontSize, in: 0.04...0.20, step: 0.01)
+                    .tint(Color.accentColor)
+                    .onChange(of: overlay.fontSize) { onUpdate() }
+            }
+            
+            // Font weight
+            VStack(alignment: .leading, spacing: 8) {
+                Text("WEIGHT")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.secondary)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(fontWeights, id: \.weight) { weight in
+                            Button {
+                                overlay.fontWeight = weight.weight
+                                onUpdate()
+                            } label: {
+                                Text(weight.label)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(overlay.fontWeight == weight.weight ? .white : .primary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        overlay.fontWeight == weight.weight ? Color.accentColor : Color(.secondarySystemGroupedBackground),
+                                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private var colorSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("COLOR")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(presetColors, id: \.self) { hex in
+                        Button {
+                            overlay.colorHex = hex
+                            onUpdate()
+                        } label: {
+                            Circle()
+                                .fill(Color(hex: hex) ?? .gray)
+                                .frame(width: 36, height: 36)
+                                .overlay(
+                                    Circle()
+                                        .stroke(.white.opacity(0.3), lineWidth: 1)
+                                )
+                                .overlay(
+                                    overlay.colorHex == hex ?
+                                    Circle()
+                                        .stroke(Color.accentColor, lineWidth: 3)
+                                        .frame(width: 44, height: 44)
+                                    : nil
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    ColorPicker("", selection: Binding(
+                        get: { Color(hex: overlay.colorHex) ?? .white },
+                        set: { color in
+                            let uiColor = UIColor(color)
+                            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+                            uiColor.getRed(&r, green: &g, blue: &b, alpha: nil)
+                            overlay.colorHex = String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+                            onUpdate()
+                        }
+                    ), supportsOpacity: false)
+                    .labelsHidden()
+                    .frame(width: 36, height: 36)
+                }
+            }
+        }
+    }
+    
+    private var effectsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("EFFECTS")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+            
+            // Shadow toggle
+            HStack {
+                Image(systemName: "shadow")
+                    .font(.system(size: 16))
+                    .foregroundStyle(overlay.shadowEnabled ? Color.accentColor : .secondary)
+                    .frame(width: 24)
+                
+                Text("Shadow")
+                    .font(.system(size: 15))
+                
+                Spacer()
+                
+                Toggle("", isOn: $overlay.shadowEnabled)
+                    .labelsHidden()
+                    .tint(Color.accentColor)
+                    .onChange(of: overlay.shadowEnabled) { onUpdate() }
+            }
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            
+            if overlay.shadowEnabled {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Opacity")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(Int(overlay.shadowOpacity * 100))%")
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $overlay.shadowOpacity, in: 0.1...1.0)
+                        .tint(Color.accentColor)
+                        .onChange(of: overlay.shadowOpacity) { onUpdate() }
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+    }
+    
+    private var positionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("POSITION")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.secondary)
+            
+            // Rotation
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "rotate.right")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                    Text("Rotation")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(overlay.rotation))°")
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                
+                Slider(value: $overlay.rotation, in: -45...45, step: 1)
+                    .tint(Color.accentColor)
+                    .onChange(of: overlay.rotation) { onUpdate() }
+            }
+            
+            // Quick position buttons
+            HStack(spacing: 8) {
+                ForEach(["Top", "Center", "Bottom"], id: \.self) { pos in
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            switch pos {
+                            case "Top": overlay.positionY = 0.12
+                            case "Center": overlay.positionY = 0.5
+                            case "Bottom": overlay.positionY = 0.88
+                            default: break
+                            }
+                            onUpdate()
+                        }
+                    } label: {
+                        Text(pos)
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            Text("Drag the text on the preview to fine-tune position")
+                .font(.system(size: 12))
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .padding(.top, 4)
+        }
     }
 }
 

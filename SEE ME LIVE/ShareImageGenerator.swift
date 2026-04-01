@@ -92,6 +92,17 @@ struct TextOverlay: Identifiable {
     var positionX: CGFloat = 0.5
     var positionY: CGFloat = 0.10
     var rotation: Double = 0
+    var shadowEnabled: Bool = true
+    var shadowOpacity: Double = 0.5
+    var outlineEnabled: Bool = false
+    var outlineColorHex: String = "#000000"
+    var alignment: TextAlignment = .center
+    
+    enum TextAlignment: String, CaseIterable {
+        case left = "Left"
+        case center = "Center"
+        case right = "Right"
+    }
 }
 
 // MARK: - Card Style

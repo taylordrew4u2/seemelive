@@ -48,6 +48,12 @@ struct HomeScreenView: View {
     @State private var emptyStateAnimated = false
     @AppStorage("showDateTextSize") private var showDateTextSize: Double = 12
 
+    // Adaptive animation states (splash-screen style)
+    @State private var contentAppeared = false
+    @State private var sectionAnimations: [String: Bool] = [:]
+    @State private var pulseGlow = false
+    
+    private var brand: Color { Color(red: 0.92, green: 0.14, blue: 0.16) }
     private let userID = UserIdentityService.shared.userID
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -172,8 +178,9 @@ struct HomeScreenView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                Color("AppBackground").ignoresSafeArea()
-
+                // Adaptive gradient background (splash-screen style)
+                adaptiveBackground
+                
                 if isLoading {
                     skeletonLoadingView
                 } else {
@@ -186,6 +193,9 @@ struct HomeScreenView: View {
                                     .padding(.horizontal, 20)
                                     .padding(.top, 8)
                                     .padding(.bottom, 12)
+                                    .opacity(contentAppeared ? 1 : 0)
+                                    .offset(y: contentAppeared ? 0 : -10)
+                                    .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.1), value: contentAppeared)
                             }
 
                             // ── Hero Header ──
@@ -199,23 +209,35 @@ struct HomeScreenView: View {
                                 spotlightCard(show: next)
                                     .padding(.horizontal, 20)
                                     .padding(.bottom, 28)
+                                    .opacity(contentAppeared ? 1 : 0)
+                                    .offset(y: contentAppeared ? 0 : 20)
+                                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.15), value: contentAppeared)
                             }
 
                             // ── Quick Actions ──
                             quickActions
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, 32)
+                                .opacity(contentAppeared ? 1 : 0)
+                                .offset(y: contentAppeared ? 0 : 20)
+                                .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.2), value: contentAppeared)
 
                             // ── Calendar ──
                             calendarSection
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, 32)
+                                .opacity(contentAppeared ? 1 : 0)
+                                .offset(y: contentAppeared ? 0 : 20)
+                                .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.25), value: contentAppeared)
 
                             // ── Upcoming Shows ──
                             if filteredUpcomingShows.count > 0 {
                                 upcomingSection
                                     .padding(.horizontal, 20)
                                     .padding(.bottom, 32)
+                                    .opacity(contentAppeared ? 1 : 0)
+                                    .offset(y: contentAppeared ? 0 : 20)
+                                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.3), value: contentAppeared)
                             }
 
                             // ── Past Shows ──
@@ -223,6 +245,9 @@ struct HomeScreenView: View {
                                 pastShowsSection
                                     .padding(.horizontal, 20)
                                     .padding(.bottom, 32)
+                                    .opacity(contentAppeared ? 1 : 0)
+                                    .offset(y: contentAppeared ? 0 : 20)
+                                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.35), value: contentAppeared)
                             }
 
                             // ── Empty State ──
@@ -305,6 +330,13 @@ struct HomeScreenView: View {
                 withAnimation(.easeOut(duration: 0.6).delay(0.1)) {
                     headerAppeared = true
                 }
+                // Trigger cascading content animations
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        contentAppeared = true
+                        pulseGlow = true
+                    }
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -319,6 +351,49 @@ struct HomeScreenView: View {
             .sheet(isPresented: $isPresentingDateSizeSheet) {
                 DateTextSizeSheet(showDateTextSize: $showDateTextSize)
             }
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Search Bar
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Adaptive Background
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    private var adaptiveBackground: some View {
+        ZStack {
+            // Base background
+            Color("AppBackground").ignoresSafeArea()
+            
+            // Subtle gradient overlay (splash-screen style)
+            LinearGradient(
+                colors: [
+                    brand.opacity(colorScheme == .dark ? 0.08 : 0.04),
+                    Color("AppBackground").opacity(0.0)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            // Animated glow orbs
+            Circle()
+                .fill(brand.opacity(colorScheme == .dark ? 0.06 : 0.03))
+                .blur(radius: 80)
+                .frame(width: 300, height: 300)
+                .offset(x: -100, y: -200)
+                .scaleEffect(pulseGlow ? 1.1 : 0.9)
+                .animation(.easeInOut(duration: 4).repeatForever(autoreverses: true), value: pulseGlow)
+            
+            Circle()
+                .fill(Color.accentColor.opacity(colorScheme == .dark ? 0.05 : 0.025))
+                .blur(radius: 100)
+                .frame(width: 400, height: 400)
+                .offset(x: 120, y: 150)
+                .scaleEffect(pulseGlow ? 0.95 : 1.05)
+                .animation(.easeInOut(duration: 5).repeatForever(autoreverses: true).delay(0.5), value: pulseGlow)
         }
     }
 
@@ -371,22 +446,29 @@ struct HomeScreenView: View {
             Text(formattedDate)
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
+                .opacity(headerAppeared ? 1 : 0)
+                .offset(y: headerAppeared ? 0 : 8)
+                .animation(.easeOut(duration: 0.5).delay(0.05), value: headerAppeared)
 
             Text(greetingMessage)
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(.primary)
                 .tracking(-0.4)
+                .opacity(headerAppeared ? 1 : 0)
+                .offset(y: headerAppeared ? 0 : 10)
+                .animation(.easeOut(duration: 0.5).delay(0.1), value: headerAppeared)
 
             if !upcomingShows.isEmpty {
                 Text("\(upcomingShows.count) upcoming \(upcomingShows.count == 1 ? "show" : "shows")")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.top, 2)
+                    .opacity(headerAppeared ? 1 : 0)
+                    .offset(y: headerAppeared ? 0 : 8)
+                    .animation(.easeOut(duration: 0.5).delay(0.15), value: headerAppeared)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(headerAppeared ? 1 : 0)
-        .offset(y: headerAppeared ? 0 : 12)
         .drawingGroup() // Optimize rendering of the header
     }
 
