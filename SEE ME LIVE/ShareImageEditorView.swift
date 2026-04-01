@@ -21,6 +21,8 @@ struct ShareImageEditorView: View {
     @State private var options: ExportOptions = ExportOptions()
     @State private var cachedImage: UIImage = UIImage()
     @State private var renderTask: Task<Void, Never>?
+    @State private var isRendering: Bool = false
+    @State private var debounceTask: Task<Void, Never>?
 
     // Background
     @State private var bgKind: CustomBackground.Kind = .gradient
@@ -127,12 +129,25 @@ struct ShareImageEditorView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear { regeneratePreview() }
-        .onChange(of: bgKind) { regeneratePreview() }
-        .onChange(of: solidColor) { regeneratePreview() }
-        .onChange(of: gradFrom) { regeneratePreview() }
-        .onChange(of: gradTo) { regeneratePreview() }
+        // Background changes
+        .onChange(of: bgKind) { regeneratePreviewDebounced() }
+        .onChange(of: solidColor) { regeneratePreviewDebounced() }
+        .onChange(of: gradFrom) { regeneratePreviewDebounced() }
+        .onChange(of: gradTo) { regeneratePreviewDebounced() }
         .onChange(of: bgPhotoData) { regeneratePreview() }
+        // Accent color
+        .onChange(of: accentColor) { regeneratePreviewDebounced() }
+        // Text overlays
         .onChange(of: overlays.count) { regeneratePreview() }
+        // Layout & content options
+        .onChange(of: options.sizePreset) { regeneratePreview() }
+        .onChange(of: options.layoutTemplate) { regeneratePreview() }
+        .onChange(of: options.showVenue) { regeneratePreview() }
+        .onChange(of: options.showDate) { regeneratePreview() }
+        .onChange(of: options.showTime) { regeneratePreview() }
+        .onChange(of: options.showHeader) { regeneratePreview() }
+        .onChange(of: options.cardStyle) { regeneratePreview() }
+        .onChange(of: options.fontStyle) { regeneratePreview() }
         .sheet(isPresented: $showAddTextSheet) {
             AddTextSheet(text: $newOverlayText) { finishedText in
                 guard !finishedText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
@@ -185,6 +200,15 @@ struct ShareImageEditorView: View {
                     .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .shadow(color: .black.opacity(0.5), radius: 20, y: 10)
+                    .opacity(isRendering ? 0.7 : 1.0)
+                    .animation(.easeInOut(duration: 0.15), value: isRendering)
+                
+                // Loading indicator
+                if isRendering {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.2)
+                }
 
                 // Draggable text overlays
                 ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
@@ -193,7 +217,7 @@ struct ShareImageEditorView: View {
                         canvasSize: CGSize(width: fitW, height: fitH),
                         isSelected: selectedOverlayID == overlay.id,
                         onTap: { selectedOverlayID = overlay.id },
-                        onDragEnd: { regeneratePreview() },
+                        onDragEnd: { regeneratePreviewDebounced() },
                         onDelete: {
                             overlays.remove(at: idx)
                             selectedOverlayID = nil
@@ -643,8 +667,19 @@ struct ShareImageEditorView: View {
         return bg
     }
 
+    private func regeneratePreviewDebounced() {
+        debounceTask?.cancel()
+        debounceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
+            guard !Task.isCancelled else { return }
+            regeneratePreview()
+        }
+    }
+
     private func regeneratePreview() {
         renderTask?.cancel()
+        isRendering = true
+        
         var opts = options
         opts.backgroundStyle = .custom
         opts.customBackground = buildCustomBG()
@@ -662,7 +697,10 @@ struct ShareImageEditorView: View {
             }.value
             
             guard !Task.isCancelled else { return }
-            cachedImage = img
+            withAnimation(.easeInOut(duration: 0.2)) {
+                cachedImage = img
+                isRendering = false
+            }
         }
     }
 
@@ -851,4 +889,3 @@ private struct ScaleButtonStyle: ButtonStyle {
         performerName: "Taylor Drew"
     )
 }
-
