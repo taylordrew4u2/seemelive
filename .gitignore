@@ -1,6 +1,9 @@
 ._*
 .DS_Store
 
+# Xcode build artifacts
+build/
+
 # Xcode caches
 CompilationCache.noindex/
 ModuleCache.noindex/

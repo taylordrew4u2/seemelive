@@ -1,2 +1,0 @@
-Target dependency graph (1 target)
-Target 'SEE ME LIVE' in project 'SEE ME LIVE' (no dependencies)
