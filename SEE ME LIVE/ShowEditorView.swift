@@ -40,6 +40,7 @@ struct ShowEditorView: View {
 
     // Alerts
     @State private var showCalendarDeniedAlert = false
+    @State private var showDiscardConfirmation = false
     @State private var isSaving = false
 
     @FocusState private var focusedField: EditorField?
@@ -78,7 +79,13 @@ struct ShowEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        if hasUnsavedChanges {
+                            showDiscardConfirmation = true
+                        } else {
+                            dismiss()
+                        }
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -108,6 +115,14 @@ struct ShowEditorView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("SEE ME LIVE needs calendar access to add your gigs. Please enable it in Settings.")
+            }
+            .confirmationDialog("Discard Changes?",
+                                isPresented: $showDiscardConfirmation,
+                                titleVisibility: .visible) {
+                Button("Discard Changes", role: .destructive) { dismiss() }
+                Button("Keep Editing", role: .cancel) {}
+            } message: {
+                Text("You have unsaved changes that will be lost.")
             }
             .confirmationDialog("Add Flyer Image",
                                 isPresented: $showImageSourcePicker,
@@ -164,7 +179,7 @@ struct ShowEditorView: View {
         VStack(spacing: 0) {
             editorField(
                 icon: "text.quote",
-                placeholder: "Show title (e.g., Comedy Night)",
+                placeholder: "Show title (required)",
                 text: $title,
                 field: .title,
                 capitalization: .words
@@ -266,6 +281,16 @@ struct ShowEditorView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
                 .scrollContentBackground(.hidden)
+                .overlay(alignment: .topLeading) {
+                    if notes.isEmpty {
+                        Text("Set times, who to ask for, parking info, etc.")
+                            .font(.system(size: 17))
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 17)
+                            .padding(.top, 8)
+                            .allowsHitTesting(false)
+                    }
+                }
         }
         .background(Color("CardBackground"))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -300,31 +325,54 @@ struct ShowEditorView: View {
 
     // Extracted save button
     private var saveButton: some View {
-        let isDisabled = title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving
-        return Button {
-            let impact = UINotificationFeedbackGenerator()
-            impact.notificationOccurred(.success)
-            Task { await saveShow() }
-        } label: {
-            HStack(spacing: 8) {
-                if isSaving {
-                    ProgressView()
-                        .tint(.white)
+        let titleEmpty = title.trimmingCharacters(in: .whitespaces).isEmpty
+        let isDisabled = titleEmpty || isSaving
+        return VStack(spacing: 8) {
+            Button {
+                let impact = UINotificationFeedbackGenerator()
+                impact.notificationOccurred(.success)
+                Task { await saveShow() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isSaving {
+                        ProgressView()
+                            .tint(.white)
+                    }
+                    Text(showToEdit == nil ? "Save Show" : "Update Show")
+                        .font(.system(size: 17, weight: .semibold))
                 }
-                Text(showToEdit == nil ? "Save Show" : "Update Show")
-                    .font(.system(size: 17, weight: .semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(isDisabled ? Color(.systemGray4) : Color.accentColor)
+                        .shadow(color: isDisabled ? .clear : Color.accentColor.opacity(0.35),
+                                radius: 12, y: 5)
+                )
+                .foregroundStyle(.white)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isDisabled ? Color(.systemGray4) : Color.accentColor)
-                    .shadow(color: isDisabled ? .clear : Color.accentColor.opacity(0.35),
-                            radius: 12, y: 5)
-            )
-            .foregroundStyle(.white)
+            .disabled(isDisabled)
+
+            if titleEmpty {
+                Text("Enter a show title to save")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
         }
-        .disabled(isDisabled)
+    }
+
+    /// Whether the form has unsaved changes worth warning about.
+    private var hasUnsavedChanges: Bool {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
+        if let show = showToEdit {
+            // Editing: check if anything changed
+            return trimmedTitle != show.titleOrEmpty ||
+                   venue != show.venueOrEmpty ||
+                   role != show.roleOrEmpty ||
+                   notes.trimmingCharacters(in: .whitespaces) != show.notesOrEmpty
+        }
+        // New show: has the user typed anything?
+        return !trimmedTitle.isEmpty || !venue.isEmpty || !role.isEmpty || !notes.isEmpty
     }
 
     // MARK: - Flyer Section

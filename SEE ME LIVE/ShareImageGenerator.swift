@@ -182,6 +182,7 @@ enum LayoutTemplate: String, CaseIterable, Identifiable {
     case minimal    = "Minimal"      // Simple text list, no badges
     case bold       = "Bold"         // Large date on top, text below
     case compact    = "Compact"      // Small cards, more shows visible
+    case stacked    = "Stacked"      // One-line per show, all details inline
     
     var id: String { rawValue }
     
@@ -191,6 +192,7 @@ enum LayoutTemplate: String, CaseIterable, Identifiable {
         case .minimal: return "list.bullet"
         case .bold:    return "calendar"
         case .compact: return "square.grid.3x3"
+        case .stacked: return "line.3.horizontal"
         }
     }
     
@@ -200,6 +202,7 @@ enum LayoutTemplate: String, CaseIterable, Identifiable {
         case .minimal: return "Clean text-only layout"
         case .bold:    return "Large prominent dates"
         case .compact: return "Fit more shows"
+        case .stacked: return "All details on one line"
         }
     }
 }
@@ -243,6 +246,11 @@ struct ExportOptions {
 
     // Max rows (0 = show all)
     var maxRows:         Int              = 0
+
+    // Show list position & scale (drag/resize on canvas)
+    var listOffsetX:     Double           = 0.0      // -0.5…0.5 (fraction of canvas width)
+    var listOffsetY:     Double           = 0.0      // -0.5…0.5 (fraction of canvas height)
+    var listScale:       Double           = 1.0      // 0.3…2.0
 
     var customBackground: CustomBackground = CustomBackground()
     var textOverlays: [TextOverlay] = []
@@ -439,10 +447,19 @@ enum ShareImageGenerator {
         // 4. Layout metrics
         let pad = size.width * 0.05
         let headerH: CGFloat = options.showHeader ? (options.headerStyle == .minimal ? size.width * 0.10 : size.width * 0.14) : 0
-        let gridTop = pad + headerH
-        let gridBottom = size.height - pad * 0.5
-        let gridH = gridBottom - gridTop
-        let gridW = size.width - pad * 2
+        let baseGridTop = pad + headerH
+        let baseGridBottom = size.height - pad * 0.5
+        let baseGridH = baseGridBottom - baseGridTop
+        let baseGridW = size.width - pad * 2
+
+        // Apply user offset & scale
+        let scale = CGFloat(options.listScale)
+        let gridW = baseGridW * scale
+        let gridH = baseGridH * scale
+        let gridCenterX = pad + baseGridW * 0.5 + CGFloat(options.listOffsetX) * size.width
+        let gridCenterY = baseGridTop + baseGridH * 0.5 + CGFloat(options.listOffsetY) * size.height
+        let gridOriginX = gridCenterX - gridW * 0.5
+        let gridOriginY = gridCenterY - gridH * 0.5
 
         // 5. Header (only if enabled)
         if options.showHeader {
@@ -450,18 +467,26 @@ enum ShareImageGenerator {
                        options: options, accent: accent, textColor: textColor, subColor: subColor)
         }
 
-        // 6. Card grid — user-defined or auto columns
-        let cols: Int
-        if options.columns > 0 {
-            cols = options.columns
+        // 6. Stacked layout gets its own path (single-column, one-line rows)
+        if options.layoutTemplate == .stacked {
+            drawStackedList(ctx: ctx, allShows: allShows, options: options,
+                            gridOrigin: CGPoint(x: gridOriginX, y: gridOriginY),
+                            gridSize: CGSize(width: gridW, height: gridH),
+                            accent: accent, textColor: textColor, subColor: subColor, isLight: isLight)
         } else {
-            cols = options.sizePreset.isVertical ? 2 : 3
+            // 6b. Card grid — user-defined or auto columns
+            let cols: Int
+            if options.columns > 0 {
+                cols = options.columns
+            } else {
+                cols = options.sizePreset.isVertical ? 2 : 3
+            }
+            drawCardGrid(ctx: ctx, allShows: allShows, options: options,
+                         gridOrigin: CGPoint(x: gridOriginX, y: gridOriginY),
+                         gridSize: CGSize(width: gridW, height: gridH),
+                         cols: cols, accent: accent, textColor: textColor,
+                         subColor: subColor, cardBG: cardBG, cardBorder: cardBorder, isLight: isLight)
         }
-        drawCardGrid(ctx: ctx, allShows: allShows, options: options,
-                     gridOrigin: CGPoint(x: pad, y: gridTop),
-                     gridSize: CGSize(width: gridW, height: gridH),
-                     cols: cols, accent: accent, textColor: textColor,
-                     subColor: subColor, cardBG: cardBG, cardBorder: cardBorder, isLight: isLight)
 
         // 7. Custom text overlays (if any)
         if !options.textOverlays.isEmpty {
@@ -475,7 +500,8 @@ enum ShareImageGenerator {
                                     performerName: String, options: ExportOptions,
                                     accent: UIColor, textColor: UIColor, subColor: UIColor) {
         let topY = pad
-        let name = performerName.isEmpty ? "My Shows" : performerName
+        let rawName = performerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = (rawName.isEmpty || rawName == "My" || rawName == "My Shows") ? "Shows" : rawName
         let fontSt = options.fontStyle
 
         switch options.headerStyle {
@@ -616,6 +642,11 @@ enum ShareImageGenerator {
                 drawCompactCard(ctx: ctx, show: show, cardRect: cardRect, innerPad: innerPad,
                                titleSz: titleSz, detailSz: detailSz, monthSz: monthSz,
                                fontSt: fontSt, accent: accent, textColor: textColor, subColor: subColor, options: options)
+            case .stacked:
+                // Handled separately via drawStackedList; fallback to minimal
+                drawMinimalCard(ctx: ctx, show: show, cardRect: cardRect, innerPad: innerPad,
+                               titleSz: titleSz, detailSz: detailSz,
+                               fontSt: fontSt, textColor: textColor, subColor: subColor, options: options)
             }
         }
     }
@@ -880,6 +911,117 @@ enum ShareImageGenerator {
             _ = drawTextReturningHeight(show.venueOrEmpty, at: CGPoint(x: textX, y: currentY),
                                         font: venueFont, color: subColor.withAlphaComponent(0.7),
                                         maxWidth: textW, maxHeight: venueMaxH, maxLines: 1)
+        }
+    }
+
+    // MARK: - Stacked List (One-Line Per Show)
+
+    /// Stacked: Each show is a single horizontal row with all details inline.
+    /// Layout: `DATE · TITLE · VENUE · TIME`  stacked vertically with thin separators.
+    private static func drawStackedList(ctx: CGContext, allShows: [ShowSnapshot],
+                                         options: ExportOptions,
+                                         gridOrigin: CGPoint, gridSize: CGSize,
+                                         accent: UIColor, textColor: UIColor,
+                                         subColor: UIColor, isLight: Bool) {
+        guard !allShows.isEmpty else {
+            let emptyFont = UIFont.systemFont(ofSize: gridSize.width * 0.04, weight: .medium)
+            drawText("No shows scheduled yet",
+                     at: CGPoint(x: gridOrigin.x, y: gridOrigin.y + gridSize.height * 0.4),
+                     font: emptyFont, color: subColor,
+                     maxWidth: gridSize.width, canvasHeight: gridOrigin.y + gridSize.height)
+            return
+        }
+
+        let fontSt = options.fontStyle
+        let ts = options.textScale
+        let shows = options.maxRows > 0 ? Array(allShows.prefix(options.maxRows)) : allShows
+        let count = shows.count
+
+        let rowGap = gridSize.width * 0.012 * options.gridGap
+        let totalGaps = rowGap * CGFloat(max(count - 1, 0))
+        let rowH = max(1, (gridSize.height - totalGaps) / CGFloat(count))
+        let innerPad = gridSize.width * 0.025 * options.showPadding
+
+        // Font sizes scaled to row
+        let mainSz = max(10, rowH * 0.38 * ts)
+        let dateSz = max(9, rowH * 0.32 * ts)
+        let dotSz  = max(8, rowH * 0.26 * ts)
+
+        let dividerColor = isLight
+            ? UIColor.black.withAlphaComponent(0.08)
+            : UIColor.white.withAlphaComponent(0.12)
+
+        for (i, show) in shows.enumerated() {
+            let rowY = gridOrigin.y + CGFloat(i) * (rowH + rowGap)
+            let rowRect = CGRect(x: gridOrigin.x, y: rowY, width: gridSize.width, height: rowH)
+
+            // Build the one-line string: "MAR 15 · Title · Venue · 8:00 PM"
+            var parts: [String] = []
+
+            if options.showDate {
+                parts.append("\(show.monthAbbrev) \(show.dayNumber)")
+            }
+
+            parts.append(show.titleOrEmpty)
+
+            if options.showVenue, !show.venueOrEmpty.isEmpty {
+                parts.append(show.venueOrEmpty)
+            }
+
+            if options.showTime {
+                parts.append(show.timeString)
+            }
+
+            // Draw the composed line
+            let textX = rowRect.minX + innerPad
+            let textW = max(1, rowRect.width - innerPad * 2)
+            let textY = rowRect.minY + (rowH - mainSz * 1.3) * 0.5
+
+            // Attributed string with colored segments
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineBreakMode = .byTruncatingTail
+
+            let composed = NSMutableAttributedString()
+            for (pi, part) in parts.enumerated() {
+                let isDate = pi == 0 && options.showDate
+                let isTitle = (options.showDate && pi == 1) || (!options.showDate && pi == 0)
+
+                let color: UIColor = isDate ? accent : (isTitle ? textColor : subColor)
+                let weight: UIFont.Weight = isTitle ? .bold : (isDate ? .heavy : .regular)
+                let size: CGFloat = isDate ? dateSz : (isTitle ? mainSz : dotSz)
+
+                let font = resolvedFont(size: size, weight: weight, style: fontSt)
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: font, .foregroundColor: color, .paragraphStyle: paragraph
+                ]
+                composed.append(NSAttributedString(string: part, attributes: attrs))
+
+                // Add separator dot
+                if pi < parts.count - 1 {
+                    let dotFont = resolvedFont(size: dotSz, weight: .regular, style: fontSt)
+                    let dotAttrs: [NSAttributedString.Key: Any] = [
+                        .font: dotFont,
+                        .foregroundColor: subColor.withAlphaComponent(0.4),
+                        .paragraphStyle: paragraph
+                    ]
+                    composed.append(NSAttributedString(string: "  ·  ", attributes: dotAttrs))
+                }
+            }
+
+            let drawRect = CGRect(x: textX, y: textY, width: textW, height: mainSz * 1.6)
+            UIGraphicsPushContext(ctx)
+            composed.draw(in: drawRect)
+            UIGraphicsPopContext()
+
+            // Thin divider between rows (not after last)
+            if i < shows.count - 1 {
+                let divY = rowRect.maxY + rowGap * 0.5
+                ctx.setStrokeColor(dividerColor.cgColor)
+                ctx.setLineWidth(1)
+                ctx.move(to: CGPoint(x: gridOrigin.x + innerPad, y: divY))
+                ctx.addLine(to: CGPoint(x: gridOrigin.x + gridSize.width - innerPad, y: divY))
+                ctx.strokePath()
+            }
         }
     }
 

@@ -8,8 +8,27 @@
 import SwiftUI
 import PhotosUI
 
+// MARK: - Editor Tab
+
+private enum EditorTab: String, CaseIterable {
+    case presets  = "Presets"
+    case layout   = "Layout"
+    case text     = "Text"
+    case colors   = "Colors"
+    case elements = "Elements"
+
+    var icon: String {
+        switch self {
+        case .presets:  return "wand.and.stars"
+        case .layout:   return "square.grid.2x2"
+        case .text:     return "textformat"
+        case .colors:   return "paintpalette"
+        case .elements: return "photo.on.rectangle"
+        }
+    }
+}
+
 // MARK: - Share Image Editor View
-/// A full-screen flyer editor with customization and export.
 
 struct ShareImageEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -17,12 +36,114 @@ struct ShareImageEditorView: View {
     let shows: [Show]
     let performerName: String
 
-    // MARK: - Local State
-    @State private var options: ExportOptions = ExportOptions()
-    @State private var cachedImage: UIImage = UIImage()
+    // ── Preset palette ──
+    private static let presetColors: [String] = [
+        "#FFFFFF", "#F5F5F5", "#000000", "#1C1C1E",
+        "#EB2429", "#FF6B6B", "#FF9500", "#FFCC00",
+        "#34C759", "#00C9A7", "#007AFF", "#5856D6",
+        "#AF52DE", "#FF2D55", "#CC7057", "#8B5CF6"
+    ]
+
+    private static let gradientPresets: [(from: String, to: String, label: String, icon: String)] = [
+        ("#1A0A00", "#3D1C00", "Amber",  "flame"),
+        ("#0F0C29", "#302B63", "Violet", "sparkles"),
+        ("#000000", "#434343", "Noir",   "moon.fill"),
+        ("#2C3E50", "#4CA1AF", "Ocean",  "water.waves"),
+        ("#FF416C", "#FF4B2B", "Sunset", "sun.horizon"),
+        ("#141E30", "#243B55", "Royal",  "crown"),
+        ("#0F2027", "#2C5364", "Deep",   "drop.fill"),
+        ("#200122", "#6F0000", "Wine",   "wineglass"),
+    ]
+
+    private static let fontWeights: [(weight: String, label: String)] = [
+        ("light", "Light"), ("regular", "Regular"), ("medium", "Medium"),
+        ("semibold", "Semi"), ("bold", "Bold"), ("heavy", "Heavy"), ("black", "Black")
+    ]
+
+    private static let fontFamilies: [(name: String, label: String, preview: String)] = [
+        ("System", "System", "Aa"),
+        ("HelveticaNeue", "Helvetica", "Aa"),
+        ("Avenir-Heavy", "Avenir", "Aa"),
+        ("Georgia", "Georgia", "Aa"),
+        ("GillSans", "Gill Sans", "Aa"),
+        ("Futura-Medium", "Futura", "Aa"),
+        ("Didot", "Didot", "Aa"),
+        ("Copperplate", "Copperplate", "Aa"),
+        ("Menlo-Regular", "Menlo", "Aa"),
+    ]
+
+    private static let flyerPresets: [(name: String, icon: String, apply: (inout ExportOptions) -> Void)] = [
+        ("Clean", "sparkles", { opts in
+            opts.layoutTemplate = .minimal
+            opts.cardStyle = .minimal
+            opts.showHeader = false
+            opts.scrimIntensity = 0.45
+            opts.textScale = 1.0
+            opts.fontStyle = .system
+        }),
+        ("Bold", "flame", { opts in
+            opts.layoutTemplate = .bold
+            opts.cardStyle = .rounded
+            opts.showHeader = true
+            opts.headerStyle = .centered
+            opts.textScale = 1.15
+            opts.fontStyle = .system
+        }),
+        ("Classic", "book.closed", { opts in
+            opts.layoutTemplate = .classic
+            opts.cardStyle = .rounded
+            opts.showHeader = true
+            opts.headerStyle = .left
+            opts.textScale = 1.0
+            opts.fontStyle = .system
+        }),
+        ("Dramatic", "theatermasks", { opts in
+            opts.layoutTemplate = .bold
+            opts.cardStyle = .outlined
+            opts.showHeader = true
+            opts.headerStyle = .centered
+            opts.scrimIntensity = 0.7
+            opts.textScale = 1.1
+            opts.fontStyle = .serif
+        }),
+        ("Compact", "rectangle.compress.vertical", { opts in
+            opts.layoutTemplate = .compact
+            opts.cardStyle = .sharp
+            opts.showHeader = false
+            opts.textScale = 0.9
+            opts.fontStyle = .system
+        }),
+        ("Poster", "star.fill", { opts in
+            opts.layoutTemplate = .bold
+            opts.cardStyle = .rounded
+            opts.showHeader = true
+            opts.headerStyle = .centered
+            opts.textScale = 1.3
+            opts.scrimIntensity = 0.6
+            opts.fontStyle = .rounded
+        }),
+        ("Stacked", "line.3.horizontal", { opts in
+            opts.layoutTemplate = .stacked
+            opts.cardStyle = .minimal
+            opts.showHeader = true
+            opts.headerStyle = .centered
+            opts.textScale = 1.0
+            opts.scrimIntensity = 0.5
+            opts.fontStyle = .system
+            opts.listScale = 1.0
+            opts.listOffsetX = 0
+            opts.listOffsetY = 0
+        }),
+    ]
+
+    // MARK: - State
+
+    @State private var options = ExportOptions()
+    @State private var cachedImage = UIImage()
     @State private var renderTask: Task<Void, Never>?
-    @State private var isRendering: Bool = false
+    @State private var isRendering = false
     @State private var debounceTask: Task<Void, Never>?
+    @State private var selectedTab: EditorTab = .presets
 
     // Background
     @State private var bgKind: CustomBackground.Kind = .gradient
@@ -33,73 +154,21 @@ struct ShareImageEditorView: View {
     @State private var bgPhotoData: Data?
     @State private var bgPhotoThumb: UIImage?
 
-    // Text overlays
+    // Overlays
     @State private var overlays: [TextOverlay] = []
     @State private var selectedOverlayID: UUID?
-    @State private var newOverlayText: String = ""
     @State private var showAddTextSheet = false
-    @State private var showTextStyleSheet = false
+    @State private var newOverlayText = ""
+    @State private var showOverlayEditor = false
     @State private var editingOverlayIndex: Int?
+
+    // Show list drag/scale on canvas
+    @State private var listDragOffset: CGSize = .zero
+    @State private var listPinchScale: CGFloat = 1.0
+    @State private var listGestureActive = false
 
     // Colors
     @State private var accentColor: Color = Color("AccentColor")
-    @State private var textColor: Color = .white
-
-    // Bottom panel
-    @State private var activePanel: EditorPanel = .layout
-
-    private enum EditorPanel: String, CaseIterable {
-        case layout = "Layout"
-        case background = "Background"
-        case content = "Content"
-        case text = "Add Text"
-
-        var icon: String {
-            switch self {
-            case .layout:     return "square.grid.2x2"
-            case .background: return "paintpalette"
-            case .content:    return "checklist"
-            case .text:       return "textformat"
-            }
-        }
-    }
-
-    // Preset colors
-    private static let presetColors: [String] = [
-        "#FFFFFF", "#000000", "#EB2429", "#FF9500", "#FFCC00",
-        "#34C759", "#007AFF", "#AF52DE", "#FF2D55", "#CC7057"
-    ]
-
-    private static let gradientPresets: [(from: String, to: String, label: String)] = [
-        ("#1A0A00", "#3D1C00", "Warm"),
-        ("#0F0C29", "#302B63", "Purple"),
-        ("#000000", "#434343", "Dark"),
-        ("#2C3E50", "#4CA1AF", "Ocean"),
-        ("#FF416C", "#FF4B2B", "Sunset"),
-        ("#141E30", "#243B55", "Royal")
-    ]
-    
-    private static let fontWeights: [(weight: String, label: String)] = [
-        ("light", "Light"),
-        ("regular", "Regular"),
-        ("medium", "Medium"),
-        ("semibold", "Semibold"),
-        ("bold", "Bold"),
-        ("heavy", "Heavy"),
-        ("black", "Black")
-    ]
-    
-    private static let fontNames: [(name: String, label: String)] = [
-        ("System", "Default"),
-        ("Georgia", "Serif"),
-        ("Courier New", "Mono"),
-        ("Futura", "Modern"),
-        ("Didot", "Elegant"),
-        ("Marker Felt", "Casual"),
-        ("Copperplate", "Classic")
-    ]
-
-    // MARK: - Body
 
     var body: some View {
         NavigationStack {
@@ -107,120 +176,71 @@ struct ShareImageEditorView: View {
                 Color.black.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Canvas preview
+                    // ── PINNED PREVIEW ──
                     canvasPreview
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 12)
                         .padding(.top, 8)
 
-                    // Export button
-                    exportButton
+                    // ── QUICK ACTION BAR ──
+                    quickActionBar
                         .padding(.horizontal, 16)
-                        .padding(.top, 12)
+                        .padding(.vertical, 10)
 
-                    // Tab bar
-                    panelTabBar
-                        .padding(.top, 8)
+                    // ── TAB BAR ──
+                    tabBar
 
-                    // Panel content
-                    panelContent
-                        .frame(height: 180)
-                        .animation(.easeInOut(duration: 0.2), value: activePanel)
+                    // ── TAB CONTENT ──
+                    tabContent
+                        .frame(maxHeight: .infinity)
                 }
             }
+            .navigationTitle("Edit Flyer")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .frame(width: 30, height: 30)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
+                    Button("Done") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: shareImage) {
+                        Image(systemName: "square.and.arrow.up")
+                            .fontWeight(.semibold)
                     }
                 }
-                ToolbarItem(placement: .principal) {
-                    Text("Create Flyer")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(.white)
-                }
             }
-            .toolbarBackground(.hidden, for: .navigationBar)
         }
-        .preferredColorScheme(.dark)
-        .onAppear { regeneratePreview() }
-        // Background changes
-        .onChange(of: bgKind) { regeneratePreviewDebounced() }
-        .onChange(of: solidColor) { regeneratePreviewDebounced() }
-        .onChange(of: gradFrom) { regeneratePreviewDebounced() }
-        .onChange(of: gradTo) { regeneratePreviewDebounced() }
-        .onChange(of: bgPhotoData) { regeneratePreview() }
-        // Accent color
-        .onChange(of: accentColor) { regeneratePreviewDebounced() }
-        // Text overlays
-        .onChange(of: overlays.count) { regeneratePreview() }
-        // Layout & content options
-        .onChange(of: options.sizePreset) { regeneratePreview() }
-        .onChange(of: options.layoutTemplate) { regeneratePreview() }
-        .onChange(of: options.showVenue) { regeneratePreview() }
-        .onChange(of: options.showDate) { regeneratePreview() }
-        .onChange(of: options.showTime) { regeneratePreview() }
-        .onChange(of: options.showHeader) { regeneratePreview() }
-        .onChange(of: options.cardStyle) { regeneratePreview() }
-        .onChange(of: options.fontStyle) { regeneratePreview() }
-        .sheet(isPresented: $showAddTextSheet) {
-            AddTextSheet(text: $newOverlayText) { finishedText in
-                guard !finishedText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                let overlay = TextOverlay(text: finishedText)
-                overlays.append(overlay)
-                selectedOverlayID = overlay.id
-                newOverlayText = ""
-                regeneratePreview()
-            }
-            .presentationDetents([.height(200)])
-        }
-        .sheet(isPresented: $showTextStyleSheet) {
-            if let idx = editingOverlayIndex, idx < overlays.count {
-                TextStyleSheet(
+        .sheet(isPresented: $showAddTextSheet) { addTextSheet }
+        .sheet(isPresented: $showOverlayEditor, onDismiss: { editingOverlayIndex = nil }) {
+            if let idx = editingOverlayIndex, overlays.indices.contains(idx) {
+                OverlayEditorSheet(
                     overlay: $overlays[idx],
                     presetColors: Self.presetColors,
                     fontWeights: Self.fontWeights,
-                    fontNames: Self.fontNames,
-                    onUpdate: { regeneratePreviewDebounced() }
+                    fontFamilies: Self.fontFamilies,
+                    onUpdate: regeneratePreview,
+                    onDelete: {
+                        overlays.remove(at: idx)
+                        selectedOverlayID = nil
+                        showOverlayEditor = false
+                        regeneratePreview()
+                    }
                 )
-                .presentationDetents([.medium, .large])
             }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            if cachedImage.size == .zero { regeneratePreview() }
         }
     }
 
-    // MARK: - Export Button
-
-    private var exportButton: some View {
-        Button(action: shareImage) {
-            HStack(spacing: 10) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 18, weight: .bold))
-                Text("Export Flyer")
-                    .font(.system(size: 17, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.accentColor)
-                    .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 5)
-            )
-        }
-        .buttonStyle(ScaleButtonStyle())
-    }
-
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // MARK: - Canvas Preview
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     private var canvasPreview: some View {
         let aspect = options.sizePreset.size.width / options.sizePreset.size.height
+        let previewH: CGFloat = UIScreen.main.bounds.height * 0.36
 
         return GeometryReader { geo in
             let availW = geo.size.width
@@ -232,25 +252,38 @@ struct ShareImageEditorView: View {
                 Image(uiImage: cachedImage)
                     .resizable()
                     .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: .black.opacity(0.5), radius: 20, y: 10)
-                    .opacity(isRendering ? 0.7 : 1.0)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .shadow(color: .black.opacity(0.6), radius: 24, y: 12)
+                    .opacity(isRendering ? 0.6 : 1.0)
                     .animation(.easeInOut(duration: 0.15), value: isRendering)
-                
-                // Loading indicator
+
                 if isRendering {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(1.2)
+                        .scaleEffect(1.3)
                 }
 
-                // Draggable text overlays
+                // ── Draggable / Scalable Show List Region ──
+                DraggableListOverlay(
+                    offsetX: $options.listOffsetX,
+                    offsetY: $options.listOffsetY,
+                    scale: $options.listScale,
+                    canvasSize: CGSize(width: fitW, height: fitH),
+                    isActive: $listGestureActive,
+                    onChanged: { regeneratePreviewDebounced() },
+                    onEnded: { regeneratePreview() }
+                )
+
                 ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
                     DraggableTextLabel(
                         overlay: $overlays[idx],
                         canvasSize: CGSize(width: fitW, height: fitH),
                         isSelected: selectedOverlayID == overlay.id,
-                        onTap: { selectedOverlayID = overlay.id },
+                        onTap: {
+                            selectedOverlayID = overlay.id
+                            editingOverlayIndex = idx
+                            showOverlayEditor = true
+                        },
                         onDragEnd: { regeneratePreviewDebounced() },
                         onDelete: {
                             overlays.remove(at: idx)
@@ -263,463 +296,881 @@ struct ShareImageEditorView: View {
             .frame(width: fitW, height: fitH)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(height: previewH)
     }
 
-    // MARK: - Panel Tab Bar
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Quick Action Bar
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    private var panelTabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(EditorPanel.allCases, id: \.rawValue) { panel in
-                Button {
-                    withAnimation(.spring(response: 0.3)) { activePanel = panel }
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: panel.icon)
-                            .font(.system(size: 20, weight: .semibold))
-                        Text(panel.rawValue)
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .foregroundStyle(activePanel == panel ? Color.accentColor : .white.opacity(0.5))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 16)
-        .background(Color.white.opacity(0.06))
-    }
-
-    // MARK: - Panel Content
-
-    @ViewBuilder
-    private var panelContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                switch activePanel {
-                case .layout:
-                    layoutPanel
-                case .background:
-                    backgroundPanel
-                case .content:
-                    contentPanel
-                case .text:
-                    textPanel
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-        }
-    }
-
-    // MARK: - Layout Panel
-
-    private var layoutPanel: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Template selector
-            VStack(alignment: .leading, spacing: 10) {
-                Text("TEMPLATE")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(LayoutTemplate.allCases) { template in
-                            templateCard(template)
-                        }
-                    }
-                }
-            }
-
-            // Size selector
-            VStack(alignment: .leading, spacing: 10) {
-                Text("SIZE")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(SocialSizePreset.allCases) { preset in
-                            sizeButton(preset)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func templateCard(_ template: LayoutTemplate) -> some View {
-        let isSelected = options.layoutTemplate == template
-        return Button {
-            options.layoutTemplate = template
-            regeneratePreview()
-        } label: {
-            VStack(spacing: 8) {
-                Image(systemName: template.icon)
-                    .font(.system(size: 24, weight: .medium))
-                    .frame(width: 56, height: 56)
-                    .background(isSelected ? Color.accentColor : Color.white.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                
-                Text(template.rawValue)
-                    .font(.system(size: 12, weight: .semibold))
-                
-                Text(template.description)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(width: 80)
-            .foregroundStyle(isSelected ? .white : .secondary)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func sizeButton(_ preset: SocialSizePreset) -> some View {
-        let isSelected = options.sizePreset == preset
-        return Button {
-            options.sizePreset = preset
-            regeneratePreview()
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: preset.icon)
-                    .font(.system(size: 14, weight: .semibold))
-                Text(preset.rawValue)
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            .frame(width: 70, height: 50)
-            .background(isSelected ? Color.accentColor : Color.white.opacity(0.08))
-            .foregroundStyle(isSelected ? .white : .secondary)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Background Panel
-
-    private var backgroundPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Background type
-            HStack(spacing: 10) {
-                bgTypeButton("Solid", icon: "circle.fill", kind: .solidColor)
-                bgTypeButton("Gradient", icon: "paintpalette.fill", kind: .gradient)
-                bgTypeButton("Photo", icon: "photo.fill", kind: .photo)
-            }
-
-            // Background options based on type
-            switch bgKind {
-            case .solidColor:
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Self.presetColors, id: \.self) { hex in
-                            colorCircle(hex: hex, isSelected: colorHex(solidColor) == hex) {
-                                solidColor = Color(hex: hex) ?? .black
-                            }
-                        }
-                        ColorPicker("", selection: $solidColor, supportsOpacity: false)
-                            .labelsHidden()
-                            .frame(width: 36, height: 36)
-                    }
-                }
-
-            case .gradient:
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(Self.gradientPresets, id: \.label) { preset in
-                            gradientButton(preset)
-                        }
-                    }
-                }
-
-            case .photo:
-                HStack(spacing: 12) {
-                    PhotosPicker(selection: $bgPhotoItem, matching: .images) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "photo.on.rectangle.angled")
-                            Text(bgPhotoData != nil ? "Change" : "Choose Photo")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-
-                    if let thumb = bgPhotoThumb {
-                        Image(uiImage: thumb)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 48, height: 48)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                }
-                .onChange(of: bgPhotoItem) { _, newItem in
-                    Task { await loadBGPhoto(from: newItem) }
-                }
-            }
-
-            // Accent color
-            VStack(alignment: .leading, spacing: 8) {
-                Text("ACCENT COLOR")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Self.presetColors, id: \.self) { hex in
-                            colorCircle(hex: hex, isSelected: colorHex(accentColor) == hex) {
-                                accentColor = Color(hex: hex) ?? .white
-                                options.accentHex = hex
-                                regeneratePreview()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func bgTypeButton(_ label: String, icon: String, kind: CustomBackground.Kind) -> some View {
-        let isActive = bgKind == kind
-        return Button {
-            bgKind = kind
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                Text(label)
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(isActive ? Color.accentColor : Color.white.opacity(0.08),
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .foregroundStyle(isActive ? .white : .secondary)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func colorCircle(hex: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Circle()
-                .fill(Color(hex: hex) ?? .gray)
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Circle().stroke(.white.opacity(0.3), lineWidth: 1)
-                )
-                .overlay(
-                    isSelected ? Circle().stroke(Color.accentColor, lineWidth: 3).frame(width: 42, height: 42) : nil
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func gradientButton(_ preset: (from: String, to: String, label: String)) -> some View {
-        Button {
-            gradFrom = Color(hex: preset.from) ?? .black
-            gradTo = Color(hex: preset.to) ?? .gray
-        } label: {
-            VStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: preset.from) ?? .black, Color(hex: preset.to) ?? .gray],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
-                    .frame(width: 50, height: 50)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(.white.opacity(0.2), lineWidth: 1)
-                    )
-                Text(preset.label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Content Panel
-
-    private var contentPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("SHOW / HIDE")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.secondary)
-                .tracking(1)
-            
-            VStack(spacing: 12) {
-                contentToggle(title: "Show Title", subtitle: "Event name", isOn: Binding(
-                    get: { true },
-                    set: { _ in }
-                ), icon: "text.alignleft", disabled: true)
-                
-                contentToggle(title: "Show Venue", subtitle: "Location name", isOn: Binding(
-                    get: { options.showVenue },
-                    set: { options.showVenue = $0; regeneratePreview() }
-                ), icon: "mappin.circle")
-                
-                contentToggle(title: "Show Date", subtitle: "Day & month badge", isOn: Binding(
-                    get: { options.showDate },
-                    set: { options.showDate = $0; regeneratePreview() }
-                ), icon: "calendar")
-                
-                contentToggle(title: "Show Time", subtitle: "Event time", isOn: Binding(
-                    get: { options.showTime },
-                    set: { options.showTime = $0; regeneratePreview() }
-                ), icon: "clock")
-            }
-        }
-    }
-
-    private func contentToggle(title: String, subtitle: String, isOn: Binding<Bool>, icon: String, disabled: Bool = false) -> some View {
+    private var quickActionBar: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundStyle(disabled ? .secondary : Color.accentColor)
-                .frame(width: 28)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(disabled ? Color.secondary : Color.white)
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.secondary)
+            Menu {
+                ForEach(SocialSizePreset.allCases) { preset in
+                    Button {
+                        options.sizePreset = preset
+                        regeneratePreview()
+                    } label: {
+                        Label(preset.rawValue, systemImage: preset.icon)
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: options.sizePreset.icon)
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(options.sizePreset.rawValue)
+                        .font(.system(size: 12, weight: .semibold))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.white.opacity(0.12), in: Capsule())
             }
-            
+
             Spacer()
-            
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(Color.accentColor)
-                .disabled(disabled)
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
 
-    // MARK: - Text Panel
-
-    private var textPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Add new text button
             Button {
                 showAddTextSheet = true
             } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 22))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Add Custom Text")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("Add your name, tagline, or any text")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .foregroundStyle(Color.accentColor)
-                .padding(14)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Image(systemName: "plus.square.on.square")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.8))
             }
-            .buttonStyle(.plain)
 
-            if overlays.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "text.badge.plus")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.secondary)
-                    Text("No text added yet")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("Tap above to add your name or tagline")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary.opacity(0.7))
+            Button(action: shareImage) {
+                HStack(spacing: 5) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("Export")
+                        .font(.system(size: 13, weight: .bold))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
-                // List of overlays with edit buttons
-                ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
-                    overlayEditRow(idx: idx, overlay: overlay)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(Color.accentColor, in: Capsule())
+            }
+            .buttonStyle(ScaleButtonStyle())
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Tab Bar
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(EditorTab.allCases, id: \.rawValue) { tab in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedTab = tab
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 16, weight: selectedTab == tab ? .bold : .medium))
+                            .symbolRenderingMode(.hierarchical)
+                        Text(tab.rawValue)
+                            .font(.system(size: 10, weight: selectedTab == tab ? .bold : .medium))
+                    }
+                    .foregroundStyle(selectedTab == tab ? Color.accentColor : .white.opacity(0.45))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                 }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .background(Color.white.opacity(0.06))
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Tab Content
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    @ViewBuilder
+    private var tabContent: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 16) {
+                switch selectedTab {
+                case .presets:  presetsPanel
+                case .layout:   layoutPanel
+                case .text:     textPanel
+                case .colors:   colorsPanel
+                case .elements: elementsPanel
+                }
+            }
+            .padding(16)
+            .padding(.bottom, 24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Presets Panel
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var presetsPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionLabel("ONE-TAP STYLES")
+
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12)
+            ], spacing: 12) {
+                ForEach(Self.flyerPresets, id: \.name) { preset in
+                    Button {
+                        withAnimation(.spring(response: 0.35)) {
+                            preset.apply(&options)
+                            regeneratePreview()
+                        }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        VStack(spacing: 8) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.white.opacity(0.06))
+                                Image(systemName: preset.icon)
+                                    .font(.system(size: 22, weight: .medium))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                            .frame(height: 56)
+
+                            Text(preset.name)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.8))
+                        }
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                }
+            }
+
+            sectionLabel("BACKGROUND")
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(Self.gradientPresets, id: \.label) { preset in
+                        Button {
+                            gradFrom = Color(hex: preset.from) ?? .black
+                            gradTo = Color(hex: preset.to) ?? .gray
+                            options.backgroundStyle = .custom
+                            bgKind = .gradient
+                            regeneratePreview()
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            VStack(spacing: 5) {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color(hex: preset.from) ?? .black, Color(hex: preset.to) ?? .gray],
+                                            startPoint: .topLeading, endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 52, height: 52)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(.white.opacity(0.15), lineWidth: 1)
+                                    )
+                                Text(preset.label)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.5))
+                            }
+                        }
+                        .buttonStyle(ScaleButtonStyle())
+                    }
+                }
+            }
+
+            HStack(spacing: 12) {
+                PhotosPicker(selection: $bgPhotoItem, matching: .images) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 14))
+                        Text(bgPhotoData != nil ? "Change Image" : "Use Photo Background")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.1), in: Capsule())
+                }
+
+                if let thumb = bgPhotoThumb {
+                    Image(uiImage: thumb)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                    Button {
+                        bgPhotoData = nil
+                        bgPhotoThumb = nil
+                        bgPhotoItem = nil
+                        bgKind = .gradient
+                        regeneratePreview()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+            }
+            .onChange(of: bgPhotoItem) { _, newItem in
+                Task { await loadBGPhoto(from: newItem) }
             }
         }
     }
 
-    private func overlayEditRow(idx: Int, overlay: TextOverlay) -> some View {
-        VStack(spacing: 0) {
-            // Main row
-            HStack(spacing: 12) {
-                // Preview badge
-                Text(overlay.text.prefix(3).uppercased())
-                    .font(.system(size: 11, weight: .heavy))
-                    .foregroundStyle(Color(hex: overlay.colorHex) ?? .white)
-                    .frame(width: 36, height: 36)
-                    .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                
-                // Text and info
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(overlay.text)
-                        .font(.system(size: 15, weight: .medium))
-                        .lineLimit(1)
-                        .foregroundStyle(.white)
-                    Text("\(overlay.fontName) • \(overlay.fontWeight.capitalized)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Layout Panel
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var layoutPanel: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            sectionLabel("TEMPLATE")
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(LayoutTemplate.allCases) { template in
+                        let isSelected = options.layoutTemplate == template
+                        Button {
+                            options.layoutTemplate = template
+                            regeneratePreview()
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            VStack(spacing: 6) {
+                                Image(systemName: template.icon)
+                                    .font(.system(size: 20, weight: .medium))
+                                    .frame(width: 52, height: 52)
+                                    .background(isSelected ? Color.accentColor : Color.white.opacity(0.08))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                                Text(template.rawValue)
+                                    .font(.system(size: 11, weight: .semibold))
+
+                                Text(template.description)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                            }
+                            .frame(width: 80)
+                            .foregroundStyle(isSelected ? .white : .white.opacity(0.6))
+                        }
+                        .buttonStyle(ScaleButtonStyle())
+                    }
                 }
-                
-                Spacer()
-                
-                // Edit button
-                Button {
-                    editingOverlayIndex = idx
-                    showTextStyleSheet = true
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 32, height: 32)
-                        .background(Color.accentColor.opacity(0.15), in: Circle())
+            }
+
+            sectionLabel("CARD STYLE")
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(CardStyle.allCases) { style in
+                        let isSelected = options.cardStyle == style
+                        Button {
+                            options.cardStyle = style
+                            regeneratePreview()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: style.icon)
+                                    .font(.system(size: 13))
+                                Text(style.rawValue)
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundStyle(isSelected ? .white : .white.opacity(0.6))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(isSelected ? Color.accentColor : Color.white.opacity(0.08), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
-                
-                // Delete button
+            }
+
+            sectionLabel("LIST POSITION & SIZE")
+
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                Text("Drag the show list on the preview to reposition it")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            sliderRow(title: "List Size", value: $options.listScale, range: 0.3...2.0, step: 0.05,
+                       format: { String(format: "%.0f%%", $0 * 100) })
+            { regeneratePreview() }
+
+            if options.listOffsetX != 0 || options.listOffsetY != 0 || options.listScale != 1.0 {
                 Button {
                     withAnimation(.spring(response: 0.3)) {
-                        overlays.remove(at: idx)
-                        if selectedOverlayID == overlay.id { selectedOverlayID = nil }
+                        options.listOffsetX = 0
+                        options.listOffsetY = 0
+                        options.listScale = 1.0
                         regeneratePreview()
                     }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } label: {
-                    Image(systemName: "trash.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(.red.opacity(0.8))
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Reset Position & Size")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ScaleButtonStyle())
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(selectedOverlayID == overlay.id ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.06))
-            )
-            .onTapGesture { 
-                selectedOverlayID = overlay.id 
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+            sectionLabel("FINE-TUNE")
+
+            sliderRow(title: "Columns", value: Binding(
+                get: { Double(options.columns) },
+                set: { options.columns = Int($0); regeneratePreview() }
+            ), range: 0...4, step: 1, format: { "\(Int($0))" }, hint: "0 = auto")
+
+            sliderRow(title: "Grid Gap", value: $options.gridGap, range: 0.5...2.0, step: 0.05,
+                       format: { String(format: "%.0f%%", $0 * 100) })
+            { regeneratePreview() }
+
+            sliderRow(title: "Card Padding", value: $options.showPadding, range: 0.5...2.0, step: 0.05,
+                       format: { String(format: "%.0f%%", $0 * 100) })
+            { regeneratePreview() }
+
+            sliderRow(title: "Background Dim", value: $options.scrimIntensity, range: 0.0...1.0, step: 0.05,
+                       format: { String(format: "%.0f%%", $0 * 100) })
+            { regeneratePreview() }
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Text Panel
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var textPanel: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            sectionLabel("FONT FAMILY")
+
+            Picker("Font", selection: Binding(
+                get: { options.fontStyle },
+                set: { options.fontStyle = $0; regeneratePreview() }
+            )) {
+                ForEach(FontStyle.allCases) { style in
+                    Text(style.rawValue).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            sectionLabel("TEXT SIZE")
+
+            sliderRow(title: "Scale", value: $options.textScale, range: 0.6...1.6, step: 0.05,
+                       format: { String(format: "%.0f%%", $0 * 100) })
+            { regeneratePreview() }
+
+            sectionLabel("HEADER")
+
+            Toggle(isOn: Binding(
+                get: { options.showHeader },
+                set: { options.showHeader = $0; regeneratePreview() }
+            )) {
+                Label("Show Header", systemImage: "text.alignleft")
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .tint(Color.accentColor)
+
+            if options.showHeader {
+                Picker("Alignment", selection: Binding(
+                    get: { options.headerStyle },
+                    set: { options.headerStyle = $0; regeneratePreview() }
+                )) {
+                    ForEach(HeaderStyle.allCases) { style in
+                        Label(style.rawValue, systemImage: style.icon).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            sectionLabel("SHOW / HIDE")
+
+            VStack(spacing: 2) {
+                visibilityToggle("Venue", icon: "mappin.circle", isOn: Binding(
+                    get: { options.showVenue },
+                    set: { options.showVenue = $0; regeneratePreview() }
+                ))
+                visibilityToggle("Date", icon: "calendar", isOn: Binding(
+                    get: { options.showDate },
+                    set: { options.showDate = $0; regeneratePreview() }
+                ))
+                visibilityToggle("Time", icon: "clock", isOn: Binding(
+                    get: { options.showTime },
+                    set: { options.showTime = $0; regeneratePreview() }
+                ))
+            }
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            sectionLabel("CUSTOM TEXT OVERLAYS")
+
+            if overlays.isEmpty {
+                HStack {
+                    Image(systemName: "text.badge.plus")
+                        .foregroundStyle(.secondary)
+                    Text("No custom text yet. Tap + above the preview to add.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
+                        HStack(spacing: 10) {
+                            Circle()
+                                .fill(Color(hex: overlay.colorHex) ?? .white)
+                                .frame(width: 12, height: 12)
+
+                            Text(overlay.text)
+                                .font(.system(size: 14, weight: .medium))
+                                .lineLimit(1)
+                                .foregroundStyle(.white)
+
+                            Spacer()
+
+                            Button {
+                                selectedOverlayID = overlay.id
+                                editingOverlayIndex = idx
+                                showOverlayEditor = true
+                            } label: {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+
+                            Button {
+                                overlays.remove(at: idx)
+                                if selectedOverlayID == overlay.id { selectedOverlayID = nil }
+                                regeneratePreview()
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.red.opacity(0.7))
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            selectedOverlayID == overlay.id ?
+                            Color.accentColor.opacity(0.15) : Color.white.opacity(0.04),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        )
+                    }
+                }
+            }
+
+            Button {
+                showAddTextSheet = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Add Custom Text")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundStyle(Color.accentColor)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
     }
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Colors Panel
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var colorsPanel: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            sectionLabel("ACCENT COLOR")
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 8), spacing: 8) {
+                ForEach(Self.presetColors, id: \.self) { hex in
+                    let isSel = colorHex(accentColor) == hex
+                    Button {
+                        accentColor = Color(hex: hex) ?? .white
+                        options.accentHex = hex
+                        regeneratePreview()
+                    } label: {
+                        Circle()
+                            .fill(Color(hex: hex) ?? .gray)
+                            .frame(width: 36, height: 36)
+                            .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
+                            .overlay(
+                                isSel ? Circle().stroke(Color.white, lineWidth: 3).padding(-2) : nil
+                            )
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                }
+
+                ColorPicker("", selection: Binding(
+                    get: { accentColor },
+                    set: { color in
+                        accentColor = color
+                        options.accentHex = colorHex(color)
+                        regeneratePreview()
+                    }
+                ), supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 36, height: 36)
+            }
+
+            sectionLabel("TEXT COLOR")
+
+            HStack(spacing: 16) {
+                Button {
+                    options.textColorHex = nil
+                    regeneratePreview()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 12))
+                        Text("Auto")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(options.textColorHex == nil ? .white : .white.opacity(0.5))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(
+                        options.textColorHex == nil ? Color.accentColor : Color.white.opacity(0.08),
+                        in: Capsule()
+                    )
+                }
+                .buttonStyle(ScaleButtonStyle())
+
+                Button {
+                    options.textColorHex = "#FFFFFF"
+                    regeneratePreview()
+                } label: {
+                    colorChip("#FFFFFF", label: "White", selected: options.textColorHex == "#FFFFFF")
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    options.textColorHex = "#000000"
+                    regeneratePreview()
+                } label: {
+                    colorChip("#000000", label: "Black", selected: options.textColorHex == "#000000")
+                }
+                .buttonStyle(.plain)
+
+                ColorPicker("", selection: Binding(
+                    get: { Color(hex: options.textColorHex ?? "#FFFFFF") ?? .white },
+                    set: { color in
+                        options.textColorHex = colorHex(color)
+                        regeneratePreview()
+                    }
+                ), supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 30, height: 30)
+            }
+
+            sectionLabel("BACKGROUND MODE")
+
+            Picker("Background", selection: Binding(
+                get: { options.backgroundStyle },
+                set: { newVal in
+                    options.backgroundStyle = newVal
+                    if newVal != .custom { bgKind = .gradient }
+                    regeneratePreview()
+                }
+            )) {
+                ForEach(BackgroundStyle.allCases) { style in
+                    Label(style.rawValue, systemImage: style.icon).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if options.backgroundStyle == .gradient || options.backgroundStyle == .custom {
+                sectionLabel("GRADIENT")
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(Self.gradientPresets, id: \.label) { preset in
+                            Button {
+                                gradFrom = Color(hex: preset.from) ?? .black
+                                gradTo = Color(hex: preset.to) ?? .gray
+                                regeneratePreview()
+                            } label: {
+                                VStack(spacing: 4) {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color(hex: preset.from) ?? .black, Color(hex: preset.to) ?? .gray],
+                                                startPoint: .top, endPoint: .bottom
+                                            )
+                                        )
+                                        .frame(width: 48, height: 48)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .stroke(.white.opacity(0.15), lineWidth: 1)
+                                        )
+                                    Text(preset.label)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.5))
+                                }
+                            }
+                            .buttonStyle(ScaleButtonStyle())
+                        }
+                    }
+                }
+
+                HStack(spacing: 16) {
+                    HStack(spacing: 8) {
+                        Text("From")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        ColorPicker("", selection: Binding(
+                            get: { gradFrom },
+                            set: { gradFrom = $0; regeneratePreview() }
+                        ), supportsOpacity: false)
+                        .labelsHidden()
+                        .frame(width: 30, height: 30)
+                    }
+
+                    HStack(spacing: 8) {
+                        Text("To")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        ColorPicker("", selection: Binding(
+                            get: { gradTo },
+                            set: { gradTo = $0; regeneratePreview() }
+                        ), supportsOpacity: false)
+                        .labelsHidden()
+                        .frame(width: 30, height: 30)
+                    }
+                }
+            }
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Elements Panel
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var elementsPanel: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            sectionLabel("BACKGROUND IMAGE")
+
+            HStack(spacing: 12) {
+                PhotosPicker(selection: $bgPhotoItem, matching: .images) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 15))
+                        Text(bgPhotoData != nil ? "Change Image" : "Choose Image")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 11)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+
+                if let thumb = bgPhotoThumb {
+                    Image(uiImage: thumb)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                    Button {
+                        bgPhotoData = nil
+                        bgPhotoThumb = nil
+                        bgPhotoItem = nil
+                        bgKind = .gradient
+                        regeneratePreview()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+
+                Spacer()
+            }
+            .onChange(of: bgPhotoItem) { _, newItem in
+                Task { await loadBGPhoto(from: newItem) }
+            }
+
+            sectionLabel("PERFORMER PHOTO")
+            placeholderArea(icon: "person.crop.circle.badge.plus", text: "Coming soon – add your photo to flyers")
+
+            sectionLabel("VENUE / LOGO")
+            placeholderArea(icon: "building.2.crop.circle", text: "Coming soon – add venue logos")
+
+            sectionLabel("TEXT OVERLAYS (\(overlays.count))")
+
+            if overlays.isEmpty {
+                placeholderArea(icon: "text.badge.plus", text: "No custom text. Tap + to add text overlays.")
+            } else {
+                ForEach(Array(overlays.enumerated()), id: \.element.id) { idx, overlay in
+                    HStack(spacing: 10) {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color(hex: overlay.colorHex) ?? .white)
+                            .frame(width: 4, height: 28)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(overlay.text)
+                                .font(.system(size: 13, weight: .medium))
+                                .lineLimit(1)
+                            Text("\(overlay.fontName) · \(overlay.fontWeight) · \(Int(overlay.fontSize * 100))%")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Button {
+                            selectedOverlayID = overlay.id
+                            editingOverlayIndex = idx
+                            showOverlayEditor = true
+                        } label: {
+                            Text("Edit")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.accentColor.opacity(0.12), in: Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+
+            Button {
+                showAddTextSheet = true
+            } label: {
+                Label("Add Text Overlay", systemImage: "plus.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Reusable Pieces
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.white.opacity(0.35))
+            .tracking(1.2)
+    }
+
+    private func sliderRow(title: String, value: Binding<Double>, range: ClosedRange<Double>,
+                           step: Double, format: @escaping (Double) -> String,
+                           hint: String? = nil, onChange: (() -> Void)? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
+                if let h = hint {
+                    Text(h)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(format(value.wrappedValue))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: range, step: step)
+                .tint(Color.accentColor)
+                .onChange(of: value.wrappedValue) { _, _ in onChange?() }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func visibilityToggle(_ title: String, icon: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 15))
+                .foregroundStyle(isOn.wrappedValue ? Color.accentColor : .secondary)
+                .frame(width: 24)
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(Color.accentColor)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private func colorChip(_ hex: String, label: String, selected: Bool) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(Color(hex: hex) ?? .gray)
+                .frame(width: 16, height: 16)
+                .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(selected ? .white : .white.opacity(0.5))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(selected ? Color.accentColor : Color.white.opacity(0.06), in: Capsule())
+    }
+
+    private func placeholderArea(icon: String, text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 22))
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Add Text Sheet
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    private var addTextSheet: some View {
+        AddTextSheet(text: $newOverlayText) { text in
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            overlays.append(TextOverlay(text: trimmed))
+            selectedOverlayID = overlays.last?.id
+            newOverlayText = ""
+            regeneratePreview()
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // MARK: - Helpers
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     private func colorHex(_ color: Color) -> String {
         let ui = UIColor(color)
@@ -741,7 +1192,7 @@ struct ShareImageEditorView: View {
     private func regeneratePreviewDebounced() {
         debounceTask?.cancel()
         debounceTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
+            try? await Task.sleep(nanoseconds: 100_000_000)
             guard !Task.isCancelled else { return }
             regeneratePreview()
         }
@@ -750,29 +1201,37 @@ struct ShareImageEditorView: View {
     private func regeneratePreview() {
         renderTask?.cancel()
         isRendering = true
-        
+
         var opts = options
         opts.backgroundStyle = .custom
         opts.customBackground = buildCustomBG()
         opts.textOverlays = overlays
         opts.accentHex = colorHex(accentColor)
-        
+
         let now = Date()
         let upcomingShows = shows.filter { ($0.date ?? now) >= now }
         let snapshots = upcomingShows.map { ShowSnapshot(from: $0) }
-        let name = performerName.isEmpty ? "My Shows" : performerName
-        
+        let name = normalizedPerformerName(performerName)
+
         renderTask = Task { @MainActor in
             let img = await Task.detached(priority: .userInitiated) {
                 ShareImageGenerator.generate(snapshots: snapshots, performerName: name, options: opts)
             }.value
-            
+
             guard !Task.isCancelled else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 cachedImage = img
                 isRendering = false
             }
         }
+    }
+
+    private func normalizedPerformerName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "My" || trimmed == "My Shows" {
+            return "Shows"
+        }
+        return trimmed
     }
 
     private func shareImage() {
@@ -795,22 +1254,105 @@ struct ShareImageEditorView: View {
         guard let item else { return }
         if let data = try? await item.loadTransferable(type: Data.self) {
             let thumb = await Task.detached(priority: .userInitiated) {
-                if let img = UIImage(data: data) {
-                    return img.preparingThumbnail(of: CGSize(width: 300, height: 300))
-                }
-                return nil
+                UIImage(data: data)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
             }.value
-
             await MainActor.run {
                 bgPhotoData = data
                 bgPhotoThumb = thumb
+                bgKind = .photo
                 regeneratePreview()
             }
         }
     }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MARK: - Draggable List Overlay
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Transparent, draggable/pinchable region that represents the show list on the canvas.
+/// Lets users reposition and resize the list with gestures.
+private struct DraggableListOverlay: View {
+    @Binding var offsetX: Double
+    @Binding var offsetY: Double
+    @Binding var scale: Double
+    let canvasSize: CGSize
+    @Binding var isActive: Bool
+    let onChanged: () -> Void
+    let onEnded: () -> Void
+
+    @State private var dragOffset: CGSize = .zero
+    @State private var pinchScale: CGFloat = 1.0
+    @GestureState private var isPinching = false
+
+    var body: some View {
+        let cx = canvasSize.width * 0.5 + CGFloat(offsetX) * canvasSize.width + dragOffset.width
+        let cy = canvasSize.height * 0.5 + CGFloat(offsetY) * canvasSize.height + dragOffset.height
+
+        // Visual region indicator
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .strokeBorder(
+                (isActive || isPinching)
+                    ? Color.accentColor.opacity(0.8)
+                    : Color.white.opacity(0.0),
+                style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
+            )
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        (isActive || isPinching)
+                            ? Color.accentColor.opacity(0.05)
+                            : Color.clear
+                    )
+            )
+            .frame(
+                width: canvasSize.width * 0.9 * CGFloat(scale) * pinchScale,
+                height: canvasSize.height * 0.75 * CGFloat(scale) * pinchScale
+            )
+            .position(x: cx, y: cy)
+            .gesture(dragGesture)
+            .gesture(magnifyGesture)
+            .onLongPressGesture(minimumDuration: 0.01, perform: {}) { pressing in
+                isActive = pressing
+            }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                dragOffset = value.translation
+                isActive = true
+                onChanged()
+            }
+            .onEnded { value in
+                let newX = offsetX + Double(value.translation.width / canvasSize.width)
+                let newY = offsetY + Double(value.translation.height / canvasSize.height)
+                offsetX = max(-0.45, min(0.45, newX))
+                offsetY = max(-0.45, min(0.45, newY))
+                dragOffset = .zero
+                isActive = false
+                onEnded()
+            }
+    }
+
+    private var magnifyGesture: some Gesture {
+        MagnifyGesture()
+            .updating($isPinching) { _, state, _ in state = true }
+            .onChanged { value in
+                pinchScale = value.magnification
+            }
+            .onEnded { value in
+                let newScale = scale * Double(value.magnification)
+                scale = max(0.3, min(2.0, newScale))
+                pinchScale = 1.0
+                onEnded()
+            }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MARK: - Draggable Text Label
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 private struct DraggableTextLabel: View {
     @Binding var overlay: TextOverlay
@@ -830,19 +1372,22 @@ private struct DraggableTextLabel: View {
             Text(overlay.text)
                 .font(resolvedFont)
                 .foregroundStyle(Color(hex: overlay.colorHex) ?? .white)
+                .shadow(color: .black.opacity(overlay.shadowEnabled ? overlay.shadowOpacity : 0.35), radius: 4, y: 2)
                 .rotationEffect(.degrees(overlay.rotation))
-                .padding(8)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
                 .background(
-                    isSelected ?
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.black.opacity(0.3))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color.accentColor, lineWidth: 2)
-                        )
-                    : nil
+                        .fill(Color.black.opacity(isSelected ? 0.4 : 0.2))
                 )
-            
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(
+                            isSelected ? Color.accentColor : Color.white.opacity(0.2),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+
             if isSelected {
                 Button(action: onDelete) {
                     Image(systemName: "xmark.circle.fill")
@@ -855,9 +1400,7 @@ private struct DraggableTextLabel: View {
         .position(x: cx + dragOffset.width, y: cy + dragOffset.height)
         .gesture(
             DragGesture()
-                .onChanged { value in
-                    dragOffset = value.translation
-                }
+                .onChanged { value in dragOffset = value.translation }
                 .onEnded { value in
                     let newX = (cx + value.translation.width) / canvasSize.width
                     let newY = (cy + value.translation.height) / canvasSize.height
@@ -894,7 +1437,9 @@ private struct DraggableTextLabel: View {
     }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MARK: - Add Text Sheet
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 private struct AddTextSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -904,12 +1449,18 @@ private struct AddTextSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                TextField("Your name, tagline, etc.", text: $text)
-                    .font(.system(size: 20, weight: .medium))
-                    .padding(16)
-                    .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .focused($isFocused)
+            VStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("What should it say?")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    TextField("Your name, tagline, URL…", text: $text)
+                        .font(.system(size: 20, weight: .medium))
+                        .padding(16)
+                        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .focused($isFocused)
+                }
 
                 Button {
                     onAdd(text)
@@ -920,8 +1471,7 @@ private struct AddTextSheet: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
-                            text.trimmingCharacters(in: .whitespaces).isEmpty ?
-                            Color(.systemGray4) : Color.accentColor,
+                            text.trimmingCharacters(in: .whitespaces).isEmpty ? Color(.systemGray4) : Color.accentColor,
                             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                         )
                         .foregroundStyle(.white)
@@ -943,45 +1493,39 @@ private struct AddTextSheet: View {
     }
 }
 
-// MARK: - Text Style Sheet
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MARK: - Overlay Editor Sheet (Full Text Customization)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-private struct TextStyleSheet: View {
+private struct OverlayEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var overlay: TextOverlay
     let presetColors: [String]
     let fontWeights: [(weight: String, label: String)]
-    let fontNames: [(name: String, label: String)]
+    let fontFamilies: [(name: String, label: String, preview: String)]
     let onUpdate: () -> Void
-    
+    let onDelete: () -> Void
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Live preview
-                    previewSection
-                    
-                    // Text content
-                    textSection
-                    
-                    // Font selection
-                    fontSection
-                    
-                    // Size and weight
-                    sizeWeightSection
-                    
-                    // Color
-                    colorSection
-                    
-                    // Effects
-                    effectsSection
-                    
-                    // Position
-                    positionSection
+                    livePreview
+                    editableText
+                    fontPicker
+                    weightPicker
+                    sizeSlider
+                    colorPicker
+                    effectsControls
+                    positionControls
+                    deleteButton
                 }
                 .padding(20)
+                .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Style Text")
+            .navigationTitle("Edit Text")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -991,60 +1535,39 @@ private struct TextStyleSheet: View {
             }
         }
     }
-    
-    private var previewSection: some View {
-        VStack(spacing: 8) {
-            Text("Preview")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.black.opacity(0.9), Color.gray.opacity(0.4)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+
+    private var livePreview: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.black.opacity(0.85), Color.gray.opacity(0.3)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
                     )
-                
-                Text(overlay.text)
-                    .font(previewFont)
-                    .foregroundStyle(Color(hex: overlay.colorHex) ?? .white)
-                    .shadow(color: overlay.shadowEnabled ? .black.opacity(overlay.shadowOpacity) : .clear, radius: 4, y: 2)
-                    .padding()
-            }
-            .frame(height: 100)
+                )
+
+            Text(overlay.text.isEmpty ? "Preview" : overlay.text)
+                .font(previewFont)
+                .foregroundStyle(Color(hex: overlay.colorHex) ?? .white)
+                .shadow(color: overlay.shadowEnabled ? .black.opacity(overlay.shadowOpacity) : .clear, radius: 4, y: 2)
+                .rotationEffect(.degrees(overlay.rotation))
+                .padding()
         }
+        .frame(height: 110)
     }
-    
+
     private var previewFont: Font {
-        let weight: Font.Weight = {
-            switch overlay.fontWeight.lowercased() {
-            case "light": return .light
-            case "regular": return .regular
-            case "medium": return .medium
-            case "semibold": return .semibold
-            case "bold": return .bold
-            case "heavy": return .heavy
-            case "black": return .black
-            default: return .bold
-            }
-        }()
+        let weight = resolveWeight(overlay.fontWeight)
         if overlay.fontName == "System" {
-            return .system(size: 28, weight: weight)
+            return .system(size: 30, weight: weight)
         } else {
-            return .custom(overlay.fontName, size: 28)
+            return .custom(overlay.fontName, size: 30)
         }
     }
-    
-    private var textSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("TEXT")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-            
+
+    private var editableText: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionHeader("TEXT")
             TextField("Your text", text: $overlay.text)
                 .font(.system(size: 17))
                 .padding(14)
@@ -1052,29 +1575,32 @@ private struct TextStyleSheet: View {
                 .onChange(of: overlay.text) { onUpdate() }
         }
     }
-    
-    private var fontSection: some View {
+
+    private var fontPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("FONT")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-            
+            sectionHeader("FONT")
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(fontNames, id: \.name) { font in
+                HStack(spacing: 8) {
+                    ForEach(fontFamilies, id: \.name) { font in
+                        let isSel = overlay.fontName == font.name
                         Button {
                             overlay.fontName = font.name
                             onUpdate()
                         } label: {
-                            Text(font.label)
-                                .font(font.name == "System" ? .system(size: 14, weight: .semibold) : .custom(font.name, size: 14))
-                                .foregroundStyle(overlay.fontName == font.name ? .white : .primary)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(
-                                    overlay.fontName == font.name ? Color.accentColor : Color(.secondarySystemGroupedBackground),
-                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                )
+                            VStack(spacing: 4) {
+                                Text(font.preview)
+                                    .font(font.name == "System" ? .system(size: 18, weight: .bold) : .custom(font.name, size: 18))
+                                    .frame(width: 44, height: 36)
+                                Text(font.label)
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundStyle(isSel ? .white : .primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(
+                                isSel ? Color.accentColor : Color(.secondarySystemGroupedBackground),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            )
                         }
                         .buttonStyle(.plain)
                     }
@@ -1082,123 +1608,105 @@ private struct TextStyleSheet: View {
             }
         }
     }
-    
-    private var sizeWeightSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Font size
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("SIZE")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("\(Int(overlay.fontSize * 100))%")
-                        .font(.system(size: 14, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-                
-                Slider(value: $overlay.fontSize, in: 0.04...0.20, step: 0.01)
-                    .tint(Color.accentColor)
-                    .onChange(of: overlay.fontSize) { onUpdate() }
-            }
-            
-            // Font weight
-            VStack(alignment: .leading, spacing: 8) {
-                Text("WEIGHT")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.secondary)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(fontWeights, id: \.weight) { weight in
-                            Button {
-                                overlay.fontWeight = weight.weight
-                                onUpdate()
-                            } label: {
-                                Text(weight.label)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(overlay.fontWeight == weight.weight ? .white : .primary)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        overlay.fontWeight == weight.weight ? Color.accentColor : Color(.secondarySystemGroupedBackground),
-                                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    private var colorSection: some View {
+
+    private var weightPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("COLOR")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-            
+            sectionHeader("WEIGHT")
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(presetColors, id: \.self) { hex in
+                HStack(spacing: 6) {
+                    ForEach(fontWeights, id: \.weight) { w in
+                        let isSel = overlay.fontWeight == w.weight
                         Button {
-                            overlay.colorHex = hex
+                            overlay.fontWeight = w.weight
                             onUpdate()
                         } label: {
-                            Circle()
-                                .fill(Color(hex: hex) ?? .gray)
-                                .frame(width: 36, height: 36)
-                                .overlay(
-                                    Circle()
-                                        .stroke(.white.opacity(0.3), lineWidth: 1)
-                                )
-                                .overlay(
-                                    overlay.colorHex == hex ?
-                                    Circle()
-                                        .stroke(Color.accentColor, lineWidth: 3)
-                                        .frame(width: 44, height: 44)
-                                    : nil
+                            Text(w.label)
+                                .font(.system(size: 12, weight: isSel ? .bold : .medium))
+                                .foregroundStyle(isSel ? .white : .primary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    isSel ? Color.accentColor : Color(.secondarySystemGroupedBackground),
+                                    in: Capsule()
                                 )
                         }
                         .buttonStyle(.plain)
                     }
-                    
-                    ColorPicker("", selection: Binding(
-                        get: { Color(hex: overlay.colorHex) ?? .white },
-                        set: { color in
-                            let uiColor = UIColor(color)
-                            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
-                            uiColor.getRed(&r, green: &g, blue: &b, alpha: nil)
-                            overlay.colorHex = String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
-                            onUpdate()
-                        }
-                    ), supportsOpacity: false)
-                    .labelsHidden()
-                    .frame(width: 36, height: 36)
                 }
             }
         }
     }
-    
-    private var effectsSection: some View {
+
+    private var sizeSlider: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                sectionHeader("SIZE")
+                Spacer()
+                Text("\(Int(overlay.fontSize * 100))%")
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 12) {
+                Image(systemName: "textformat.size.smaller")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Slider(value: $overlay.fontSize, in: 0.03...0.25, step: 0.005)
+                    .tint(Color.accentColor)
+                    .onChange(of: overlay.fontSize) { onUpdate() }
+                Image(systemName: "textformat.size.larger")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var colorPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("COLOR")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 8), spacing: 6) {
+                ForEach(presetColors, id: \.self) { hex in
+                    let isSel = overlay.colorHex == hex
+                    Button {
+                        overlay.colorHex = hex
+                        onUpdate()
+                    } label: {
+                        Circle()
+                            .fill(Color(hex: hex) ?? .gray)
+                            .frame(width: 34, height: 34)
+                            .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
+                            .overlay(isSel ? Circle().stroke(Color.accentColor, lineWidth: 3).padding(-3) : nil)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                ColorPicker("", selection: Binding(
+                    get: { Color(hex: overlay.colorHex) ?? .white },
+                    set: { color in
+                        let uiColor = UIColor(color)
+                        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+                        uiColor.getRed(&r, green: &g, blue: &b, alpha: nil)
+                        overlay.colorHex = String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+                        onUpdate()
+                    }
+                ), supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 34, height: 34)
+            }
+        }
+    }
+
+    private var effectsControls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("EFFECTS")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-            
-            // Shadow toggle
+            sectionHeader("EFFECTS")
+
             HStack {
                 Image(systemName: "shadow")
-                    .font(.system(size: 16))
+                    .font(.system(size: 15))
                     .foregroundStyle(overlay.shadowEnabled ? Color.accentColor : .secondary)
                     .frame(width: 24)
-                
-                Text("Shadow")
-                    .font(.system(size: 15))
-                
+                Text("Drop Shadow")
+                    .font(.system(size: 14))
                 Spacer()
-                
                 Toggle("", isOn: $overlay.shadowEnabled)
                     .labelsHidden()
                     .tint(Color.accentColor)
@@ -1206,95 +1714,132 @@ private struct TextStyleSheet: View {
             }
             .padding(12)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            
+
             if overlay.shadowEnabled {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Opacity")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(Int(overlay.shadowOpacity * 100))%")
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
+                HStack {
+                    Text("Intensity")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
                     Slider(value: $overlay.shadowOpacity, in: 0.1...1.0)
                         .tint(Color.accentColor)
                         .onChange(of: overlay.shadowOpacity) { onUpdate() }
+                    Text("\(Int(overlay.shadowOpacity * 100))%")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 38, alignment: .trailing)
                 }
                 .padding(.horizontal, 4)
             }
-        }
-    }
-    
-    private var positionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("POSITION")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-            
-            // Rotation
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "rotate.right")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                    Text("Rotation")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("\(Int(overlay.rotation))°")
-                        .font(.system(size: 13, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-                
+
+            HStack {
+                Image(systemName: "rotate.right")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Text("Rotation")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
                 Slider(value: $overlay.rotation, in: -45...45, step: 1)
                     .tint(Color.accentColor)
                     .onChange(of: overlay.rotation) { onUpdate() }
+                Text("\(Int(overlay.rotation))°")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 38, alignment: .trailing)
             }
-            
-            // Quick position buttons
-            HStack(spacing: 8) {
-                ForEach(["Top", "Center", "Bottom"], id: \.self) { pos in
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            switch pos {
-                            case "Top": overlay.positionY = 0.12
-                            case "Center": overlay.positionY = 0.5
-                            case "Bottom": overlay.positionY = 0.88
-                            default: break
-                            }
-                            onUpdate()
-                        }
-                    } label: {
-                        Text(pos)
-                            .font(.system(size: 13, weight: .medium))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .foregroundStyle(.primary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            
-            Text("Drag the text on the preview to fine-tune position")
+        }
+    }
+
+    private var positionControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("POSITION")
+            Text("Drag the text on the preview, or use quick placement:")
                 .font(.system(size: 12))
                 .foregroundStyle(.tertiary)
+
+            HStack(spacing: 8) {
+                positionButton("Top Left", x: 0.2, y: 0.08)
+                positionButton("Top Center", x: 0.5, y: 0.08)
+                positionButton("Top Right", x: 0.8, y: 0.08)
+            }
+            HStack(spacing: 8) {
+                positionButton("Mid Left", x: 0.2, y: 0.5)
+                positionButton("Center", x: 0.5, y: 0.5)
+                positionButton("Mid Right", x: 0.8, y: 0.5)
+            }
+            HStack(spacing: 8) {
+                positionButton("Bot Left", x: 0.2, y: 0.92)
+                positionButton("Bottom", x: 0.5, y: 0.92)
+                positionButton("Bot Right", x: 0.8, y: 0.92)
+            }
+        }
+    }
+
+    private func positionButton(_ label: String, x: Double, y: Double) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3)) {
+                overlay.positionX = x
+                overlay.positionY = y
+                onUpdate()
+            }
+        } label: {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
                 .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
-                .padding(.top, 4)
+                .padding(.vertical, 9)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var deleteButton: some View {
+        Button(role: .destructive) {
+            onDelete()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "trash")
+                Text("Remove Text")
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.secondary)
+            .tracking(1)
+    }
+
+    private func resolveWeight(_ w: String) -> Font.Weight {
+        switch w.lowercased() {
+        case "ultralight": return .ultraLight
+        case "thin": return .thin
+        case "light": return .light
+        case "regular": return .regular
+        case "medium": return .medium
+        case "semibold": return .semibold
+        case "bold": return .bold
+        case "heavy": return .heavy
+        case "black": return .black
+        default: return .bold
         }
     }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MARK: - Button Style
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 private struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.85 : 1.0)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
@@ -1305,3 +1850,7 @@ private struct ScaleButtonStyle: ButtonStyle {
         performerName: "Taylor Drew"
     )
 }
+
+
+
+

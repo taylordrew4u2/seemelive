@@ -100,36 +100,46 @@ struct ShowDetailView: View {
                     }
 
                     // MARK: Action Buttons
-                    HStack(spacing: 12) {
-                        Button {
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            onEdit()
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .foregroundStyle(.primary)
-                                .background(Color("CardBackground"))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.06),
-                                        radius: 8, x: 0, y: 3)
+                    VStack(spacing: 12) {
+                        HStack(spacing: 12) {
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                onEdit()
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .foregroundStyle(.primary)
+                                    .background(Color("CardBackground"))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.06),
+                                            radius: 8, x: 0, y: 3)
+                            }
+                            .buttonStyle(DetailCardPress())
+
+                            ShareLink(item: shareText) {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .foregroundStyle(Color.accentColor)
+                                    .background(Color.accentColor.opacity(0.08))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            .buttonStyle(DetailCardPress())
                         }
-                        .buttonStyle(DetailCardPress())
 
                         Button(role: .destructive) {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             showDeleteConfirmation = true
                         } label: {
-                            Label("Delete", systemImage: "trash")
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .foregroundStyle(.red)
-                                .background(Color.red.opacity(0.08))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            Label("Delete Show", systemImage: "trash")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.red.opacity(0.7))
                         }
-                        .buttonStyle(DetailCardPress())
+                        .buttonStyle(.plain)
+                        .padding(.top, 8)
                     }
                     .padding(.top, 4)
                 }
@@ -212,31 +222,24 @@ struct ShowDetailView: View {
             Color.gray.opacity(0.1)
                 .frame(height: 300)
         } else {
-            // Branded placeholder
-            ZStack {
+            // Subtle placeholder — don't waste vertical space
+            HStack(spacing: 10) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 20, weight: .light))
+                    .foregroundStyle(Color.accentColor.opacity(0.5))
+                Text("No flyer added")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 80)
+            .background(
                 LinearGradient(
-                    colors: [Color.accentColor.opacity(0.6), Color.accentColor.opacity(0.2)],
+                    colors: [Color.accentColor.opacity(0.06), Color.clear],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                VStack(spacing: 14) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 44, weight: .ultraLight))
-                        .foregroundStyle(.white.opacity(0.7))
-                    VStack(spacing: 4) {
-                        Text(show.titleOrEmpty)
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                        Text("No flyer added")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 220)
+            )
         }
     }
 
@@ -330,6 +333,24 @@ struct ShowDetailView: View {
             await PublicCloudSyncService.shared.flushQueue(using: viewContext)
         }
         dismiss()
+    }
+
+    // MARK: - Share Text
+
+    private var shareText: String {
+        var parts: [String] = []
+        parts.append("🎤 \(show.titleOrEmpty)")
+        if !show.venueOrEmpty.isEmpty {
+            parts.append("📍 \(show.venueOrEmpty)")
+        }
+        parts.append("📅 \(show.dateFormatted)")
+        if show.price > 0 {
+            parts.append("🎟 \(show.priceFormatted)")
+        }
+        if show.hasTicketLink, let url = show.normalizedTicketURL {
+            parts.append("🔗 \(url.absoluteString)")
+        }
+        return parts.joined(separator: "\n")
     }
 }
 

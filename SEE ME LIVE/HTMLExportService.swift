@@ -29,7 +29,7 @@ struct CalendarDisplayOptions: Codable, Equatable {
     var layout: Layout       = .list
     var showPastShows: Bool  = false
     var accentHex: String    = "#9A6544"   // warm brown default
-    var performerName: String = "My"
+    var performerName: String = ""
 
     // Persist to UserDefaults
     static let defaultsKey = "calendarDisplayOptions"
@@ -66,9 +66,13 @@ enum HTMLExportService {
         let accent = options.accentHex
         let css = buildCSS(options: options)
 
-        let titleText = options.performerName == "My"
-            ? "Performance Calendar"
-            : "\(options.performerName)'s Shows"
+        let titleText = {
+            let trimmed = options.performerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed == "My" {
+                return "Performance Calendar"
+            }
+            return "\(trimmed)'s Shows"
+        }()
 
         // Group shows by month
         let cal = Calendar.current
@@ -142,7 +146,7 @@ enum HTMLExportService {
     }
 
     // MARK: - Legacy convenience wrapper (keeps existing callers building)
-    static func generateHTML(shows: [Show], performerName: String = "My") -> String {
+    static func generateHTML(shows: [Show], performerName: String = "") -> String {
         var opts = CalendarDisplayOptions()
         opts.performerName = performerName
         return generateHTML(shows: shows, options: opts)

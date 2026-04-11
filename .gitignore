@@ -1,2 +1,15 @@
 ._*
 .DS_Store
+
+# Xcode caches
+CompilationCache.noindex/
+ModuleCache.noindex/
+SDKStatCaches.noindex/
+SymbolCache.noindex/
+SEE_ME_LIVE-dgdofyfxlbqewubzjniqklaainyr/
+
+# Xcode user data
+*.xcuserdata/
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcworkspace/xcshareddata/

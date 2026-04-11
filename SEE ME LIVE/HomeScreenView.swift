@@ -340,12 +340,17 @@ struct HomeScreenView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        isPresentingDateSizeSheet = true
+                    Menu {
+                        Button {
+                            isPresentingDateSizeSheet = true
+                        } label: {
+                            Label("Date Text Size", systemImage: "textformat.size")
+                        }
                     } label: {
-                        Image(systemName: "textformat.size")
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 15, weight: .medium))
                     }
-                    .accessibilityLabel("Adjust date text size")
+                    .accessibilityLabel("Settings")
                 }
             }
             .sheet(isPresented: $isPresentingDateSizeSheet) {
@@ -718,14 +723,28 @@ struct HomeScreenView: View {
                             }
                         }
                     } else {
-                        HStack {
-                            Spacer()
+                        VStack(spacing: 8) {
                             Text("No shows on this date")
                                 .font(.system(size: 14))
                                 .foregroundStyle(.tertiary)
-                                .padding(.vertical, 14)
-                            Spacer()
+
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                // Pre-set the date to the selected calendar date
+                                showToEdit = nil
+                                isPresentingEditor = true
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text("Add Show")
+                                        .font(.system(size: 13, weight: .semibold))
+                                }
+                                .foregroundStyle(Color.accentColor)
+                            }
+                            .buttonStyle(.plain)
                         }
+                        .padding(.vertical, 14)
                     }
                 }
             }
@@ -832,14 +851,23 @@ struct HomeScreenView: View {
 
     private var upcomingSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("UPCOMING")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-                .tracking(1)
-                .padding(.leading, 4)
+            HStack {
+                Text("UPCOMING")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+                    .padding(.leading, 4)
+                Spacer()
+                Text("\(filteredUpcomingShows.count)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.accentColor))
+            }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
-                ForEach(Array(upcomingShows.enumerated()), id: \.element.objectID) { idx, show in
+            LazyVStack(spacing: 0) {
+                ForEach(Array(filteredUpcomingShows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {
                             showToEdit = show
@@ -849,6 +877,23 @@ struct HomeScreenView: View {
                         ShowRow(show: show)
                     }
                     .buttonStyle(RowPress())
+                    .contextMenu {
+                        Button {
+                            showToEdit = show
+                            isPresentingEditor = true
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            deleteShow(show)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+
+                    if idx < filteredUpcomingShows.count - 1 {
+                        Divider().padding(.leading, 68)
+                    }
                 }
             }
             .background(Color("CardBackground"))
@@ -864,14 +909,23 @@ struct HomeScreenView: View {
 
     private var pastShowsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("PAST SHOWS")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-                .tracking(1)
-                .padding(.leading, 4)
+            HStack {
+                Text("PAST SHOWS")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+                    .padding(.leading, 4)
+                Spacer()
+                Text("\(filteredPastShows.count)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+            }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
-                ForEach(Array(pastShows.enumerated()), id: \.element.objectID) { idx, show in
+            LazyVStack(spacing: 0) {
+                ForEach(Array(filteredPastShows.enumerated()), id: \.element.objectID) { idx, show in
                     NavigationLink {
                         ShowDetailView(show: show) {
                             showToEdit = show
@@ -882,6 +936,23 @@ struct HomeScreenView: View {
                             .opacity(0.7)
                     }
                     .buttonStyle(RowPress())
+                    .contextMenu {
+                        Button {
+                            showToEdit = show
+                            isPresentingEditor = true
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            deleteShow(show)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+
+                    if idx < filteredPastShows.count - 1 {
+                        Divider().padding(.leading, 68)
+                    }
                 }
             }
             .background(Color("CardBackground"))
@@ -1065,6 +1136,18 @@ struct HomeScreenView: View {
     private func performBackgroundSync() async {
         let bgContext = PersistenceController.shared.container.newBackgroundContext()
         await PublicCloudSyncService.shared.flushQueue(using: bgContext)
+    }
+
+    private func deleteShow(_ show: Show) {
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        PublicCloudSyncService.shared.markForDelete(show: show)
+        CalendarService.shared.deleteEvent(for: show)
+        viewContext.delete(show)
+        PersistenceController.shared.save(context: viewContext)
+        Task {
+            await PublicCloudSyncService.shared.flushQueue(using: viewContext)
+        }
+        showToastBriefly("Show deleted")
     }
 }
 

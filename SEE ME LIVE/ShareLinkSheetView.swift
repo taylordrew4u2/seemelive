@@ -38,7 +38,7 @@ struct ShareLinkSheetView: View {
             .fullScreenCover(isPresented: $showEditor) {
                 ShareImageEditorView(
                     shows: shows,
-                    performerName: performerName.isEmpty ? "My Shows" : performerName
+                    performerName: normalizedPerformerName(performerName)
                 )
             }
             .onChange(of: showEditor) { _, isShowing in
@@ -172,7 +172,7 @@ struct ShareLinkSheetView: View {
 
     private func regenerateImage() {
         renderTask?.cancel()
-        let name  = performerName.isEmpty ? "My Shows" : performerName
+        let name  = normalizedPerformerName(performerName)
         let opts  = options
         // Snapshot Show managed objects on the main thread (safe).
         let now = Date()
@@ -184,6 +184,14 @@ struct ShareLinkSheetView: View {
             guard !Task.isCancelled else { return }
             await MainActor.run { cachedImage = img }
         }
+    }
+
+    private func normalizedPerformerName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "My" || trimmed == "My Shows" {
+            return "Shows"
+        }
+        return trimmed
     }
 
     private func loadBackgroundPhoto(from item: PhotosPickerItem?) async {

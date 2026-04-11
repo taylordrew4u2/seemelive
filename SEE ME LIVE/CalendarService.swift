@@ -6,6 +6,7 @@
 //
 
 import EventKit
+import UIKit
 
 // MARK: - Calendar Service
 /// Manages EventKit calendar events: create, update, and delete.
@@ -17,6 +18,9 @@ final class CalendarService {
     static let shared = CalendarService()
 
     private let store = EKEventStore()
+    private let calendarIDKey = "seeMeLiveCalendarID"
+    private let appCalendarTitle = "My Gig Calendar"
+    private let appCalendarColor = UIColor(hex: "#EB2429")
 
     private init() {}
 
@@ -51,6 +55,11 @@ final class CalendarService {
             event = existing
         } else {
             event = EKEvent(eventStore: store)
+        }
+
+        if let calendar = getOrCreateAppCalendar() {
+            event.calendar = calendar
+        } else {
             event.calendar = store.defaultCalendarForNewEvents
         }
 
@@ -105,5 +114,58 @@ final class CalendarService {
         } catch {
             print("⚠️ Failed to delete calendar event: \(error)")
         }
+    }
+
+    /// Gets the app calendar (creating it if needed) so events share one dot color.
+    private func getOrCreateAppCalendar() -> EKCalendar? {
+        if let savedID = UserDefaults.standard.string(forKey: calendarIDKey),
+           let existing = store.calendar(withIdentifier: savedID) {
+            return existing
+        }
+
+        if let existing = store.calendars(for: .event).first(where: { $0.title == appCalendarTitle }) {
+            UserDefaults.standard.set(existing.calendarIdentifier, forKey: calendarIDKey)
+            return existing
+        }
+
+        guard let source = preferredCalendarSource() else { return nil }
+        let calendar = EKCalendar(for: .event, eventStore: store)
+        calendar.title = appCalendarTitle
+        calendar.source = source
+        calendar.cgColor = appCalendarColor.cgColor
+
+        do {
+            try store.saveCalendar(calendar, commit: true)
+            UserDefaults.standard.set(calendar.calendarIdentifier, forKey: calendarIDKey)
+            return calendar
+        } catch {
+            print("⚠️ Failed to create app calendar: \(error)")
+            return nil
+        }
+    }
+
+    private func preferredCalendarSource() -> EKSource? {
+        if let icloud = store.sources.first(where: { $0.sourceType == .calDAV && $0.title == "iCloud" }) {
+            return icloud
+        }
+        if let local = store.sources.first(where: { $0.sourceType == .local }) {
+            return local
+        }
+        return store.defaultCalendarForNewEvents?.source
+    }
+}
+
+// MARK: - UIColor hex init
+
+private extension UIColor {
+    convenience init(hex: String) {
+        var h = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if h.hasPrefix("#") { h.removeFirst() }
+        var rgb: UInt64 = 0
+        Scanner(string: h).scanHexInt64(&rgb)
+        self.init(red:   CGFloat((rgb >> 16) & 0xFF) / 255,
+                  green: CGFloat((rgb >> 8)  & 0xFF) / 255,
+                  blue:  CGFloat( rgb        & 0xFF) / 255,
+                  alpha: 1)
     }
 }
