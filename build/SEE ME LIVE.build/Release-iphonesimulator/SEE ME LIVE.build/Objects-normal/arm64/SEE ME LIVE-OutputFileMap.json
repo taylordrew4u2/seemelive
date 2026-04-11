@@ -1,0 +1,126 @@
+{
+  "" : {
+    "const-values" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary.swiftconstvalues",
+    "dependencies" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary.d",
+    "diagnostics" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary.dia",
+    "emit-module-dependencies" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary-emit-module.dia",
+    "pch" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary.swiftdeps"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/BrandLogoView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/BrandLogoView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/BrandLogoView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/BrandLogoView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/CalendarService.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/CalendarService.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/CalendarService.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/CalendarService.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ContentView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/DateTextSizeSheet.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/DateTextSizeSheet.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/DateTextSizeSheet.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/DateTextSizeSheet.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/HTMLExportService.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HTMLExportService.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HTMLExportService.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HTMLExportService.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/HTMLPreviewView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HTMLPreviewView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HTMLPreviewView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HTMLPreviewView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/HomeScreenView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HomeScreenView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HomeScreenView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/HomeScreenView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/Persistence.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Persistence.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Persistence.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Persistence.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/PublicCloudSyncService.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/PublicCloudSyncService.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/PublicCloudSyncService.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/PublicCloudSyncService.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/SEE_ME_LIVEApp.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVEApp.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVEApp.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVEApp.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShareImageEditorView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareImageEditorView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareImageEditorView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareImageEditorView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShareImageGenerator.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareImageGenerator.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareImageGenerator.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareImageGenerator.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShareLinkService.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareLinkService.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareLinkService.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareLinkService.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShareLinkSheetView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareLinkSheetView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareLinkSheetView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShareLinkSheetView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/Show+Extensions.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+Extensions.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+Extensions.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+Extensions.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShowDetailView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShowDetailView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShowDetailView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShowDetailView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShowEditorView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShowEditorView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShowEditorView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/ShowEditorView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/SplashScreenView.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SplashScreenView.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SplashScreenView.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SplashScreenView.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/UserIdentityService.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/UserIdentityService.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/UserIdentityService.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/UserIdentityService.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/DerivedSources/CoreDataGenerated/SEE_ME_LIVE/SEE_ME_LIVE+CoreDataModel.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVE+CoreDataModel.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVE+CoreDataModel.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVE+CoreDataModel.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/DerivedSources/CoreDataGenerated/SEE_ME_LIVE/Show+CoreDataClass.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+CoreDataClass.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+CoreDataClass.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+CoreDataClass.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/DerivedSources/CoreDataGenerated/SEE_ME_LIVE/Show+CoreDataProperties.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+CoreDataProperties.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+CoreDataProperties.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/Show+CoreDataProperties.o"
+  },
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

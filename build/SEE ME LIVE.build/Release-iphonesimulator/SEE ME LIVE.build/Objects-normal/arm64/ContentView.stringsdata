@@ -1,0 +1,48 @@
+{
+  "source": "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ContentView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "My Gigs",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 71
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Show",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 185
+        }
+      },
+      {
+        "comment": "",
+        "key": "Adjust date text size",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 94
+        }
+      },
+      {
+        "comment": "",
+        "key": "No Upcoming Events",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 118
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap + to add your first show",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 122
+        }
+      }
+    ]
+  },
+  "version": 1
+}

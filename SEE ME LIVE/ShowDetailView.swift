@@ -330,7 +330,8 @@ struct ShowDetailView: View {
         viewContext.delete(show)
         PersistenceController.shared.save(context: viewContext)
         Task {
-            await PublicCloudSyncService.shared.flushQueue(using: viewContext)
+            let bgContext = PersistenceController.shared.container.newBackgroundContext()
+            await PublicCloudSyncService.shared.flushQueue(using: bgContext)
         }
         dismiss()
     }

@@ -1,0 +1,12 @@
+{
+  "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/BrandLogoView.swift" : {
+    "abi-baseline-json" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVE.abi.json",
+    "const-values" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary.swiftconstvalues",
+    "dependencies" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary.d",
+    "diagnostics" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE ME LIVE-primary.dia",
+    "objc-header" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVE-Swift.h",
+    "swiftdoc" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVE.swiftdoc",
+    "swiftmodule" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVE.swiftmodule",
+    "swiftsourceinfo" : "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/build/SEE ME LIVE.build/Release-iphonesimulator/SEE ME LIVE.build/Objects-normal/arm64/SEE_ME_LIVE.swiftsourceinfo"
+  }
+}

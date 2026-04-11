@@ -243,10 +243,10 @@ struct ShareImageEditorView: View {
         let previewH: CGFloat = UIScreen.main.bounds.height * 0.36
 
         return GeometryReader { geo in
-            let availW = geo.size.width
-            let availH = geo.size.height
-            let fitW = min(availW, availH * aspect)
-            let fitH = fitW / aspect
+            let availW = max(geo.size.width, 1)
+            let availH = max(geo.size.height, 1)
+            let fitW = max(min(availW, availH * aspect), 1)
+            let fitH = max(fitW / aspect, 1)
 
             ZStack {
                 Image(uiImage: cachedImage)
@@ -1312,9 +1312,6 @@ private struct DraggableListOverlay: View {
             .position(x: cx, y: cy)
             .gesture(dragGesture)
             .gesture(magnifyGesture)
-            .onLongPressGesture(minimumDuration: 0.01, perform: {}) { pressing in
-                isActive = pressing
-            }
     }
 
     private var dragGesture: some Gesture {
@@ -1850,6 +1847,8 @@ private struct ScaleButtonStyle: ButtonStyle {
         performerName: "Taylor Drew"
     )
 }
+
+
 
 
 

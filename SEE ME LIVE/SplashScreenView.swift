@@ -49,23 +49,29 @@ struct SplashScreenView: View {
 
             VStack(spacing: 18) {
                 ZStack {
-                    Circle()
-                        .fill(brand.opacity(0.18))
-                        .scaleEffect(glow ? 1.14 : 0.94)
-                        .blur(radius: glow ? 26 : 16)
-                        .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: glow)
+                    // Decorative animations — drawingGroup to prevent rate-limit spam
+                    Group {
+                        Circle()
+                            .fill(brand.opacity(0.18))
+                            .scaleEffect(glow ? 1.14 : 0.94)
+                            .blur(radius: glow ? 26 : 16)
+                            .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: glow)
 
-                    Circle()
-                        .stroke(brand.opacity(0.28), lineWidth: 3)
-                        .scaleEffect(ripple ? 1.45 : 0.75)
-                        .opacity(ripple ? 0.0 : 0.65)
-                        .animation(.easeOut(duration: 1.9).delay(0.15).repeatForever(autoreverses: false), value: ripple)
+                        Circle()
+                            .stroke(brand.opacity(0.28), lineWidth: 3)
+                            .scaleEffect(ripple ? 1.45 : 0.75)
+                            .opacity(ripple ? 0.0 : 0.65)
+                            .animation(.easeOut(duration: 1.9).delay(0.15).repeatForever(autoreverses: false), value: ripple)
 
-                    Circle()
-                        .stroke(Color.white.opacity(0.55), lineWidth: 2)
-                        .scaleEffect(pulse ? 1.18 : 0.9)
-                        .opacity(pulse ? 0.0 : 0.7)
-                        .animation(.easeOut(duration: 1.4).repeatForever(autoreverses: false), value: pulse)
+                        Circle()
+                            .stroke(Color.white.opacity(0.55), lineWidth: 2)
+                            .scaleEffect(pulse ? 1.18 : 0.9)
+                            .opacity(pulse ? 0.0 : 0.7)
+                            .animation(.easeOut(duration: 1.4).repeatForever(autoreverses: false), value: pulse)
+                    }
+                    .drawingGroup()
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
 
                     BrandLogoView(size: 138)
                         .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.2), radius: 16, y: 10)

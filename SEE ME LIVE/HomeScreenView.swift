@@ -383,22 +383,28 @@ struct HomeScreenView: View {
             )
             .ignoresSafeArea()
             
-            // Animated glow orbs
-            Circle()
-                .fill(brand.opacity(colorScheme == .dark ? 0.06 : 0.03))
-                .blur(radius: 80)
-                .frame(width: 300, height: 300)
-                .offset(x: -100, y: -200)
-                .scaleEffect(pulseGlow ? 1.1 : 0.9)
-                .animation(.easeInOut(duration: 4).repeatForever(autoreverses: true), value: pulseGlow)
-            
-            Circle()
-                .fill(Color.accentColor.opacity(colorScheme == .dark ? 0.05 : 0.025))
-                .blur(radius: 100)
-                .frame(width: 400, height: 400)
-                .offset(x: 120, y: 150)
-                .scaleEffect(pulseGlow ? 0.95 : 1.05)
-                .animation(.easeInOut(duration: 5).repeatForever(autoreverses: true).delay(0.5), value: pulseGlow)
+            // Animated glow orbs — drawingGroup + accessibilityHidden to prevent
+            // excessive accessibility/layout notifications (rate-limit spam).
+            Group {
+                Circle()
+                    .fill(brand.opacity(colorScheme == .dark ? 0.06 : 0.03))
+                    .blur(radius: 80)
+                    .frame(width: 300, height: 300)
+                    .offset(x: -100, y: -200)
+                    .scaleEffect(pulseGlow ? 1.1 : 0.9)
+                    .animation(.easeInOut(duration: 4).repeatForever(autoreverses: true), value: pulseGlow)
+                
+                Circle()
+                    .fill(Color.accentColor.opacity(colorScheme == .dark ? 0.05 : 0.025))
+                    .blur(radius: 100)
+                    .frame(width: 400, height: 400)
+                    .offset(x: 120, y: 150)
+                    .scaleEffect(pulseGlow ? 0.95 : 1.05)
+                    .animation(.easeInOut(duration: 5).repeatForever(autoreverses: true).delay(0.5), value: pulseGlow)
+            }
+            .drawingGroup()
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
         }
     }
 
@@ -971,20 +977,25 @@ struct HomeScreenView: View {
             Spacer(minLength: 60)
 
             ZStack {
-                // Animated pulse rings
-                ForEach(0..<3, id: \.self) { i in
-                    Circle()
-                        .stroke(Color.accentColor.opacity(0.15), lineWidth: 1)
-                        .frame(width: 110 + CGFloat(i * 30), height: 110 + CGFloat(i * 30))
-                        .scaleEffect(emptyStateAnimated ? 1.1 : 0.9)
-                        .opacity(emptyStateAnimated ? 0.3 : 0.6)
-                        .animation(
-                            .easeInOut(duration: 2.0)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(i) * 0.3),
-                            value: emptyStateAnimated
-                        )
+                // Animated pulse rings — drawingGroup to prevent rate-limit spam
+                Group {
+                    ForEach(0..<3, id: \.self) { i in
+                        Circle()
+                            .stroke(Color.accentColor.opacity(0.15), lineWidth: 1)
+                            .frame(width: 110 + CGFloat(i * 30), height: 110 + CGFloat(i * 30))
+                            .scaleEffect(emptyStateAnimated ? 1.1 : 0.9)
+                            .opacity(emptyStateAnimated ? 0.3 : 0.6)
+                            .animation(
+                                .easeInOut(duration: 2.0)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(i) * 0.3),
+                                value: emptyStateAnimated
+                            )
+                    }
                 }
+                .drawingGroup()
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
                 
                 Circle()
                     .fill(Color.accentColor.opacity(0.08))
@@ -1145,7 +1156,8 @@ struct HomeScreenView: View {
         viewContext.delete(show)
         PersistenceController.shared.save(context: viewContext)
         Task {
-            await PublicCloudSyncService.shared.flushQueue(using: viewContext)
+            let bgContext = PersistenceController.shared.container.newBackgroundContext()
+            await PublicCloudSyncService.shared.flushQueue(using: bgContext)
         }
         showToastBriefly("Show deleted")
     }
@@ -1416,12 +1428,14 @@ private struct SkeletonView: View {
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: geo.size.width * 0.6)
+                        .frame(width: max(geo.size.width * 0.6, 1))
                         .offset(x: isAnimating ? geo.size.width : -geo.size.width * 0.6)
                 }
                 .clipped()
             )
             .clipShape(RoundedRectangle(cornerRadius: height / 3, style: .continuous))
+            .drawingGroup()
+            .accessibilityHidden(true)
             .onAppear {
                 withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                     isAnimating = true

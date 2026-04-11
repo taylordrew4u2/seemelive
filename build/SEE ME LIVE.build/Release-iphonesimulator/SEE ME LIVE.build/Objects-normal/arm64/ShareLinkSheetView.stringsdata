@@ -1,0 +1,48 @@
+{
+  "source": "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShareLinkSheetView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Create Flyer",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 56
+        }
+      },
+      {
+        "comment": "",
+        "key": "Done",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 60
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create Flyer",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 96
+        }
+      },
+      {
+        "comment": "",
+        "key": "Edit Image",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 145
+        }
+      },
+      {
+        "comment": "",
+        "key": "Background · Text · Font",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 148
+        }
+      }
+    ]
+  },
+  "version": 1
+}

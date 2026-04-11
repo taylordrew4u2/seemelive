@@ -1,0 +1,256 @@
+{
+  "source": "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShowEditorView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Add New Gig",
+        "location": {
+          "startingColumn": 50,
+          "startingLine": 78
+        }
+      },
+      {
+        "comment": "",
+        "key": "Edit Gig",
+        "location": {
+          "startingColumn": 66,
+          "startingLine": 78
+        }
+      },
+      {
+        "comment": "",
+        "key": "Calendar Access Denied",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 108
+        }
+      },
+      {
+        "comment": "",
+        "key": "Discard Changes?",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 119
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Flyer Image",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 127
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 82
+        }
+      },
+      {
+        "comment": "",
+        "key": "Done",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 92
+        }
+      },
+      {
+        "comment": "",
+        "key": "Open Settings",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 110
+        }
+      },
+      {
+        "comment": "",
+        "key": "OK",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 115
+        }
+      },
+      {
+        "comment": "",
+        "key": "SEE ME LIVE needs calendar access to add your gigs. Please enable it in Settings.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 117
+        }
+      },
+      {
+        "comment": "",
+        "key": "Discard Changes",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 122
+        }
+      },
+      {
+        "comment": "",
+        "key": "Keep Editing",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 123
+        }
+      },
+      {
+        "comment": "",
+        "key": "You have unsaved changes that will be lost.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 125
+        }
+      },
+      {
+        "comment": "",
+        "key": "Take Photo",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 130
+        }
+      },
+      {
+        "comment": "",
+        "key": "Choose from Library",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 131
+        }
+      },
+      {
+        "comment": "",
+        "key": "Remove Image",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 133
+        }
+      },
+      {
+        "comment": "",
+        "key": "Date & Time",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 252
+        }
+      },
+      {
+        "comment": "",
+        "key": "Notes",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 269
+        }
+      },
+      {
+        "comment": "",
+        "key": "Set times, who to ask for, parking info, etc.",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 286
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add to Calendar",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 303
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reminder (1 hr before)",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 313
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter a show title to save",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 357
+        }
+      },
+      {
+        "comment": "",
+        "key": "Save Show",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 341
+        }
+      },
+      {
+        "comment": "",
+        "key": "Update Show",
+        "location": {
+          "startingColumn": 60,
+          "startingLine": 341
+        }
+      },
+      {
+        "comment": "",
+        "key": "SHOW FLYER",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 387
+        }
+      },
+      {
+        "comment": "",
+        "key": "Remove",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 396
+        }
+      },
+      {
+        "comment": "",
+        "key": "Change",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 423
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Show Flyer",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 455
+        }
+      },
+      {
+        "comment": "",
+        "key": "Upload from your library or take a photo",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 458
+        }
+      },
+      {
+        "comment": "",
+        "key": "Camera",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 464
+        }
+      },
+      {
+        "comment": "",
+        "key": "Library",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 467
+        }
+      }
+    ]
+  },
+  "version": 1
+}

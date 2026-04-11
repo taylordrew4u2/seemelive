@@ -1,0 +1,104 @@
+{
+  "source": "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/ShowDetailView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Details",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 154
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete this show?",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 156
+        }
+      },
+      {
+        "comment": "",
+        "key": "Get Tickets",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 61
+        }
+      },
+      {
+        "comment": "",
+        "key": "Notes",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 83
+        }
+      },
+      {
+        "comment": "",
+        "key": "Edit",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 109
+        }
+      },
+      {
+        "comment": "",
+        "key": "Share",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 122
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete Show",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 137
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 159
+        }
+      },
+      {
+        "comment": "",
+        "key": "This will remove the show from your calendar and public listing.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 161
+        }
+      },
+      {
+        "comment": "",
+        "key": "View Flyer",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 209
+        }
+      },
+      {
+        "comment": "",
+        "key": "No flyer added",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 230
+        }
+      },
+      {
+        "comment": "",
+        "key": "Share Flyer",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 307
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,32 @@
+{
+  "source": "/Volumes/UnionSine/SEE ME LIVE/SEE ME LIVE/SEE ME LIVE/SplashScreenView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "SEE ME LIVE is starting up",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 102
+        }
+      },
+      {
+        "comment": "",
+        "key": "SEE ME LIVE",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 83
+        }
+      },
+      {
+        "comment": "",
+        "key": "Show the world where you’re performing next.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 91
+        }
+      }
+    ]
+  },
+  "version": 1
+}
