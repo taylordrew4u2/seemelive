@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import PhotosUI
 
 // MARK: - Share Image Sheet
 
@@ -29,8 +28,6 @@ struct ShareLinkSheetView: View {
     @State private var cachedImage: UIImage   = UIImage()
     @State private var renderTask: Task<Void, Never>? = nil
     @State private var showEditor = false
-    @State private var bgPhotoItem: PhotosPickerItem?
-    @State private var bgPhotoThumb: UIImage?
 
     // MARK: Body
     var body: some View {
@@ -111,20 +108,6 @@ struct ShareLinkSheetView: View {
         }
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     private var previewSection: some View {
         sectionCard(title: "Preview", icon: "photo") {
             Image(uiImage: cachedImage)
@@ -194,21 +177,6 @@ struct ShareLinkSheetView: View {
         return trimmed
     }
 
-    private func loadBackgroundPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-        if let data = try? await item.loadTransferable(type: Data.self) {
-            await MainActor.run {
-                options.customBackground.kind = .photo
-                options.customBackground.photoData = data
-                options.backgroundStyle = .custom
-                if let img = UIImage(data: data) {
-                    bgPhotoThumb = img
-                }
-                regenerateImage()
-            }
-        }
-    }
-
     private func shareJPEG() {
         let image = cachedImage
         presentSheet(items: [image])
@@ -242,75 +210,6 @@ struct ShareLinkSheetView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color("CardBackground"))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-
-// MARK: - Helper Subviews to reduce inline complexity
-
-private struct PresetButtonLabel: View {
-    let icon: String
-    let title: String
-    let subtitle: String?
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .multilineTextAlignment(.center)
-            if let subtitle {
-                Text(subtitle)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-    }
-}
-
-private struct SimplePresetButtonLabel: View {
-    let icon: String
-    let title: String
-    let iconSize: CGFloat
-    let titleSize: CGFloat
-
-    init(icon: String, title: String, iconSize: CGFloat = 16, titleSize: CGFloat = 11) {
-        self.icon = icon
-        self.title = title
-        self.iconSize = iconSize
-        self.titleSize = titleSize
-    }
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: iconSize))
-            Text(title)
-                .font(.system(size: titleSize, weight: .semibold))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 9)
-    }
-}
-
-private struct TogglesList: View {
-    @Binding var options: ExportOptions
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            toggleRow(isOn: $options.showDate, title: "Date & Time")
-            toggleRow(isOn: $options.showVenue, title: "Venue")
-        }
-    }
-
-    private func toggleRow(isOn: Binding<Bool>, title: String) -> some View {
-        Toggle(isOn: isOn) {
-            Text(title)
-                .font(.subheadline)
-        }
-        .tint(Color.accentColor)
     }
 }
 

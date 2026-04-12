@@ -163,8 +163,6 @@ struct ShareImageEditorView: View {
     @State private var editingOverlayIndex: Int?
 
     // Show list drag/scale on canvas
-    @State private var listDragOffset: CGSize = .zero
-    @State private var listPinchScale: CGFloat = 1.0
     @State private var listGestureActive = false
 
     // Colors
@@ -1306,8 +1304,8 @@ private struct DraggableListOverlay: View {
                     )
             )
             .frame(
-                width: canvasSize.width * 0.9 * CGFloat(scale) * pinchScale,
-                height: canvasSize.height * 0.75 * CGFloat(scale) * pinchScale
+                width: max(1, canvasSize.width * 0.9 * CGFloat(scale) * pinchScale),
+                height: max(1, canvasSize.height * 0.75 * CGFloat(scale) * pinchScale)
             )
             .position(x: cx, y: cy)
             .gesture(dragGesture)
@@ -1399,6 +1397,10 @@ private struct DraggableTextLabel: View {
             DragGesture()
                 .onChanged { value in dragOffset = value.translation }
                 .onEnded { value in
+                    guard canvasSize.width > 0, canvasSize.height > 0 else {
+                        dragOffset = .zero
+                        return
+                    }
                     let newX = (cx + value.translation.width) / canvasSize.width
                     let newY = (cy + value.translation.height) / canvasSize.height
                     overlay.positionX = max(0.05, min(0.95, newX))
@@ -1411,7 +1413,7 @@ private struct DraggableTextLabel: View {
     }
 
     private var resolvedFont: Font {
-        let size = overlay.fontSize * canvasSize.width * 0.4
+        let size = max(1, overlay.fontSize * canvasSize.width * 0.4)
         let weight: Font.Weight = {
             switch overlay.fontWeight.lowercased() {
             case "ultralight": return .ultraLight
@@ -1847,6 +1849,7 @@ private struct ScaleButtonStyle: ButtonStyle {
         performerName: "Taylor Drew"
     )
 }
+
 
 
 

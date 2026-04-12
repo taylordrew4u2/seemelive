@@ -42,15 +42,6 @@ enum SocialSizePreset: String, CaseIterable, Identifiable {
     var isVertical: Bool { size.height >= size.width }
 }
 
-// MARK: - Image Layout
-
-enum ImageLayout: String, CaseIterable, Identifiable {
-    case list = "List"
-    case grid = "Grid"
-    var id: String { rawValue }
-    var icon: String { self == .list ? "list.bullet" : "square.grid.2x2" }
-}
-
 // MARK: - Background Style
 
 enum BackgroundStyle: String, CaseIterable, Identifiable {
@@ -366,11 +357,6 @@ enum ShareImageGenerator {
             drawCanvas(in: ctx.cgContext, size: size, snapshots: snapshots,
                        performerName: performerName, options: options)
         }
-    }
-
-    // Legacy shim
-    static func generate(shows: [Show], performerName: String, layout: ImageLayout = .list) -> UIImage {
-        return generate(shows: shows, performerName: performerName, options: ExportOptions())
     }
 
     // MARK: - Font Resolver
@@ -975,40 +961,58 @@ enum ShareImageGenerator {
             // Draw the composed line
             let textX = rowRect.minX + innerPad
             let textW = max(1, rowRect.width - innerPad * 2)
-            let textY = rowRect.minY + (rowH - mainSz * 1.3) * 0.5
 
-            // Attributed string with colored segments
-            let paragraph = NSMutableParagraphStyle()
-            paragraph.lineBreakMode = .byTruncatingTail
+            // Build and auto-scale the one-line attributed string to fit without truncation
+            var scaleFactor: CGFloat = 1.0
+            let minScale: CGFloat = 0.25 // Allow scaling down to 25% of original size
+            var composed = NSMutableAttributedString()
+            var measuredWidth: CGFloat = .greatestFiniteMagnitude
 
-            let composed = NSMutableAttributedString()
-            for (pi, part) in parts.enumerated() {
-                let isDate = pi == 0 && options.showDate
-                let isTitle = (options.showDate && pi == 1) || (!options.showDate && pi == 0)
+            // Iteratively scale fonts down until the line fits the available width
+            while scaleFactor >= minScale {
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.lineBreakMode = .byClipping
 
-                let color: UIColor = isDate ? accent : (isTitle ? textColor : subColor)
-                let weight: UIFont.Weight = isTitle ? .bold : (isDate ? .heavy : .regular)
-                let size: CGFloat = isDate ? dateSz : (isTitle ? mainSz : dotSz)
+                composed = NSMutableAttributedString()
+                for (pi, part) in parts.enumerated() {
+                    let isDate = pi == 0 && options.showDate
+                    let isTitle = (options.showDate && pi == 1) || (!options.showDate && pi == 0)
 
-                let font = resolvedFont(size: size, weight: weight, style: fontSt)
-                let attrs: [NSAttributedString.Key: Any] = [
-                    .font: font, .foregroundColor: color, .paragraphStyle: paragraph
-                ]
-                composed.append(NSAttributedString(string: part, attributes: attrs))
+                    let color: UIColor = isDate ? accent : (isTitle ? textColor : subColor)
+                    let weight: UIFont.Weight = isTitle ? .bold : (isDate ? .heavy : .regular)
+                    let size: CGFloat = (isDate ? dateSz : (isTitle ? mainSz : dotSz)) * scaleFactor
 
-                // Add separator dot
-                if pi < parts.count - 1 {
-                    let dotFont = resolvedFont(size: dotSz, weight: .regular, style: fontSt)
-                    let dotAttrs: [NSAttributedString.Key: Any] = [
-                        .font: dotFont,
-                        .foregroundColor: subColor.withAlphaComponent(0.4),
-                        .paragraphStyle: paragraph
+                    let font = resolvedFont(size: max(6, size), weight: weight, style: fontSt)
+                    let attrs: [NSAttributedString.Key: Any] = [
+                        .font: font, .foregroundColor: color, .paragraphStyle: paragraph
                     ]
-                    composed.append(NSAttributedString(string: "  ·  ", attributes: dotAttrs))
+                    composed.append(NSAttributedString(string: part, attributes: attrs))
+
+                    // Add separator dot
+                    if pi < parts.count - 1 {
+                        let dotFont = resolvedFont(size: max(6, dotSz * scaleFactor), weight: .regular, style: fontSt)
+                        let dotAttrs: [NSAttributedString.Key: Any] = [
+                            .font: dotFont,
+                            .foregroundColor: subColor.withAlphaComponent(0.4),
+                            .paragraphStyle: paragraph
+                        ]
+                        composed.append(NSAttributedString(string: "  ·  ", attributes: dotAttrs))
+                    }
                 }
+
+                // Measure single-line width
+                let measured = composed.boundingRect(
+                    with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+                measuredWidth = measured.width
+
+                if measuredWidth <= textW { break }
+                scaleFactor -= 0.05
             }
 
-            let drawRect = CGRect(x: textX, y: textY, width: textW, height: mainSz * 1.6)
+            let scaledMainSz = mainSz * max(scaleFactor, minScale)
+            let textY = rowRect.minY + (rowH - scaledMainSz * 1.3) * 0.5
+            let drawRect = CGRect(x: textX, y: textY, width: textW, height: scaledMainSz * 1.6)
             UIGraphicsPushContext(ctx)
             composed.draw(in: drawRect)
             UIGraphicsPopContext()
@@ -1139,9 +1143,9 @@ enum ShareImageGenerator {
     }
 
     private static func drawText(_ text: String, at origin: CGPoint, font: UIFont,
-                                  color: UIColor, maxWidth: CGFloat, canvasHeight: CGFloat,
-                                  lineSpacing: CGFloat = 0, forceNoTruncation: Bool = false,
-                                  maxLines: Int = 2, centered: Bool = false) {
+                                   color: UIColor, maxWidth: CGFloat, canvasHeight: CGFloat,
+                                   lineSpacing: CGFloat = 0,
+                                   maxLines: Int = 2, centered: Bool = false) {
         guard !text.isEmpty else { return }
         
         let drawWidth = max(1, maxWidth)
@@ -1149,36 +1153,36 @@ enum ShareImageGenerator {
         
         let ps = NSMutableParagraphStyle()
         ps.lineSpacing = lineSpacing
-        ps.lineBreakMode = forceNoTruncation ? .byWordWrapping : .byTruncatingTail
+        ps.lineBreakMode = .byWordWrapping  // Never truncate with "..."
         if centered {
             ps.alignment = .center
         }
         
         var usedFont = font
         var fontSize = font.pointSize
-        let minFontSize: CGFloat = max(10, font.pointSize * 0.4) // Don't go below 40% of original or 10pt
+        let minFontSize: CGFloat = max(6, font.pointSize * 0.25) // Allow scaling down to 25% of original
         
         // Calculate the maximum height we want (based on maxLines)
-        let singleLineHeight = font.lineHeight
-        let maxAllowedHeight = min(drawHeight, singleLineHeight * CGFloat(maxLines) + lineSpacing * CGFloat(maxLines - 1))
+        var singleLineHeight = font.lineHeight
+        var maxAllowedHeight = min(drawHeight, singleLineHeight * CGFloat(maxLines) + lineSpacing * CGFloat(maxLines - 1))
         
         var attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: ps])
         var bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude), 
                                                 options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
         
-        // Adaptive scaling: reduce font size if text doesn't fit
-        if forceNoTruncation {
-            while (bounding.height > maxAllowedHeight || bounding.width > drawWidth) && fontSize > minFontSize {
-                fontSize -= 0.5
-                usedFont = font.withSize(fontSize)
-                let newPs = NSMutableParagraphStyle()
-                newPs.lineSpacing = lineSpacing * (fontSize / font.pointSize)
-                newPs.lineBreakMode = .byWordWrapping
-                if centered { newPs.alignment = .center }
-                attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: newPs])
-                bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude), 
-                                                    options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
-            }
+        // Always scale down if text doesn't fit within maxLines height
+        while bounding.height > maxAllowedHeight && fontSize > minFontSize {
+            fontSize -= 0.5
+            usedFont = font.withSize(fontSize)
+            let newPs = NSMutableParagraphStyle()
+            newPs.lineSpacing = lineSpacing * (fontSize / font.pointSize)
+            newPs.lineBreakMode = .byWordWrapping
+            if centered { newPs.alignment = .center }
+            attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: newPs])
+            bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude), 
+                                                 options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+            singleLineHeight = usedFont.lineHeight
+            maxAllowedHeight = min(drawHeight, singleLineHeight * CGFloat(maxLines) + lineSpacing * CGFloat(maxLines - 1))
         }
         
         // Draw the text
@@ -1204,26 +1208,29 @@ enum ShareImageGenerator {
         
         var usedFont = font
         var fontSize = font.pointSize
-        let minFontSize: CGFloat = max(10, font.pointSize * 0.4)
+        let minFontSize: CGFloat = max(6, font.pointSize * 0.25) // Allow scaling down to 25% of original
         
-        let singleLineHeight = font.lineHeight
-        let maxAllowedHeight = min(maxHeight, singleLineHeight * CGFloat(maxLines) + lineSpacing * CGFloat(maxLines - 1))
+        var singleLineHeight = font.lineHeight
+        var maxAllowedHeight = min(maxHeight, singleLineHeight * CGFloat(maxLines) + lineSpacing * CGFloat(maxLines - 1))
         
-        var attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: ps])
+        var currentPs = ps
+        var attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: currentPs])
         var bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude),
                                                 options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
         
-        // Scale down if needed
-        while (bounding.height > maxAllowedHeight) && fontSize > minFontSize {
+        // Scale down if needed — check both height overflow and single-line width for maxLines==1
+        while bounding.height > maxAllowedHeight && fontSize > minFontSize {
             fontSize -= 0.5
             usedFont = font.withSize(fontSize)
-            let newPs = NSMutableParagraphStyle()
-            newPs.lineSpacing = lineSpacing * (fontSize / font.pointSize)
-            newPs.lineBreakMode = .byWordWrapping
-            if centered { newPs.alignment = .center }
-            attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: newPs])
+            currentPs = NSMutableParagraphStyle()
+            currentPs.lineSpacing = lineSpacing * (fontSize / font.pointSize)
+            currentPs.lineBreakMode = .byWordWrapping
+            if centered { currentPs.alignment = .center }
+            attrString = NSAttributedString(string: text, attributes: [.font: usedFont, .foregroundColor: color, .paragraphStyle: currentPs])
             bounding = attrString.boundingRect(with: CGSize(width: drawWidth, height: .greatestFiniteMagnitude),
                                                 options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+            singleLineHeight = usedFont.lineHeight
+            maxAllowedHeight = min(maxHeight, singleLineHeight * CGFloat(maxLines) + lineSpacing * CGFloat(maxLines - 1))
         }
         
         let finalHeight = min(bounding.height, maxAllowedHeight)

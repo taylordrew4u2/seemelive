@@ -19,7 +19,6 @@ extension Show {
     var notesOrEmpty: String   { notes ?? "" }
     var ticketLinkOrEmpty: String { ticketLink ?? "" }
     var dateOrNow: Date        { date ?? Date() }
-    var userIDOrEmpty: String  { userID ?? "" }
 
     var priceFormatted: String {
         price > 0 ? String(format: "$%.2f", price) : "Free"

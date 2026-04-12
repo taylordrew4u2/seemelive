@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		BA0000092FA00009AABBCCDD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BAE42E2E2F574DF70064DCBD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BAE42E352F574DF70064DCBD;
+			remoteInfo = "SEE ME LIVE";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		BA0000012FA00001AABBCCDD /* SEE ME LIVETests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "SEE ME LIVETests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		BAE42E362F574DF70064DCBD /* SEE ME LIVE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "SEE ME LIVE.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -21,6 +32,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		BA000011A2FA0011AABBCCDD /* SEE ME LIVETests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "SEE ME LIVETests";
+			sourceTree = "<group>";
+		};
 		BAE42E382F574DF70064DCBD /* SEE ME LIVE */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -32,6 +48,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		BA0000032FA00003AABBCCDD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BAE42E332F574DF70064DCBD /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				BAE42E382F574DF70064DCBD /* SEE ME LIVE */,
+				BA000011A2FA0011AABBCCDD /* SEE ME LIVETests */,
 				BAE42E372F574DF70064DCBD /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				BAE42E362F574DF70064DCBD /* SEE ME LIVE.app */,
+				BA0000012FA00001AABBCCDD /* SEE ME LIVETests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -61,6 +86,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		BA0000052FA00005AABBCCDD /* SEE ME LIVETests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BA0000082FA00008AABBCCDD /* Build configuration list for PBXNativeTarget "SEE ME LIVETests" */;
+			buildPhases = (
+				BA0000022FA00002AABBCCDD /* Sources */,
+				BA0000032FA00003AABBCCDD /* Frameworks */,
+				BA0000042FA00004AABBCCDD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BA000010A2FA0010AABBCCDD /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BA000011A2FA0011AABBCCDD /* SEE ME LIVETests */,
+			);
+			name = "SEE ME LIVETests";
+			productName = "SEE ME LIVETests";
+			productReference = BA0000012FA00001AABBCCDD /* SEE ME LIVETests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		BAE42E352F574DF70064DCBD /* SEE ME LIVE */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = BAE42E472F574DF90064DCBD /* Build configuration list for PBXNativeTarget "SEE ME LIVE" */;
@@ -93,6 +139,10 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
+					BA0000052FA00005AABBCCDD = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = BAE42E352F574DF70064DCBD;
+					};
 					BAE42E352F574DF70064DCBD = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -113,11 +163,19 @@
 			projectRoot = "";
 			targets = (
 				BAE42E352F574DF70064DCBD /* SEE ME LIVE */,
+				BA0000052FA00005AABBCCDD /* SEE ME LIVETests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		BA0000042FA00004AABBCCDD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BAE42E342F574DF70064DCBD /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -128,6 +186,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		BA0000022FA00002AABBCCDD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BAE42E322F574DF70064DCBD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -137,7 +202,53 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		BA000010A2FA0010AABBCCDD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BAE42E352F574DF70064DCBD /* SEE ME LIVE */;
+			targetProxy = BA0000092FA00009AABBCCDD /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		BA0000062FA00006AABBCCDD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R44WG942GS;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "comedy.SEE-ME-LIVE.Tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SEE ME LIVE.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SEE ME LIVE";
+			};
+			name = Debug;
+		};
+		BA0000072FA00007AABBCCDD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R44WG942GS;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "comedy.SEE-ME-LIVE.Tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SEE ME LIVE.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SEE ME LIVE";
+			};
+			name = Release;
+		};
 		BAE42E482F574DF90064DCBD /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -150,6 +261,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "SEE ME LIVE/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "My Gig Calendar";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -160,7 +272,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "comedy.SEE-ME-LIVE";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -182,6 +294,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "SEE ME LIVE/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "My Gig Calendar";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -192,7 +305,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "comedy.SEE-ME-LIVE";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -328,6 +441,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		BA0000082FA00008AABBCCDD /* Build configuration list for PBXNativeTarget "SEE ME LIVETests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BA0000062FA00006AABBCCDD /* Debug */,
+				BA0000072FA00007AABBCCDD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		BAE42E312F574DF70064DCBD /* Build configuration list for PBXProject "SEE ME LIVE" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -41,16 +41,13 @@ struct HomeScreenView: View {
     @State private var calendarMonth: Date = Date()
     @State private var selectedCalendarDate: Date?
     @State private var isRefreshing = false
-    @State private var refreshRotation: Double = 0
     @State private var isLoading = true
     @State private var searchText = ""
-    @State private var isSearching = false
     @State private var emptyStateAnimated = false
     @AppStorage("showDateTextSize") private var showDateTextSize: Double = 12
 
     // Adaptive animation states (splash-screen style)
     @State private var contentAppeared = false
-    @State private var sectionAnimations: [String: Bool] = [:]
     @State private var pulseGlow = false
     
     private var brand: Color { Color(red: 0.92, green: 0.14, blue: 0.16) }
@@ -360,10 +357,6 @@ struct HomeScreenView: View {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Search Bar
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // MARK: - Adaptive Background
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
@@ -422,11 +415,6 @@ struct HomeScreenView: View {
                 .font(.system(size: 16))
                 .foregroundStyle(.primary)
                 .autocorrectionDisabled()
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isSearching = true
-                    }
-                }
 
             if !searchText.isEmpty {
                 Button {
@@ -480,7 +468,6 @@ struct HomeScreenView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .drawingGroup() // Optimize rendering of the header
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -582,7 +569,6 @@ struct HomeScreenView: View {
                     radius: 20, x: 0, y: 8)
         }
         .buttonStyle(CardPress())
-        .drawingGroup() // Optimize rendering of the card
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1347,50 +1333,6 @@ private struct FABStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
             .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MARK: - All Shows List View
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-private struct AllShowsListView: View {
-    let shows: [Show]
-    @State private var showToEdit: Show?
-    @State private var isPresentingEditor = false
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(Array(shows.enumerated()), id: \.element.objectID) { idx, show in
-                    NavigationLink {
-                        ShowDetailView(show: show) {
-                            showToEdit = show
-                            isPresentingEditor = true
-                        }
-                    } label: {
-                        ShowRow(show: show)
-                    }
-                    .buttonStyle(RowPress())
-
-                    if idx < shows.count - 1 {
-                        Divider().padding(.leading, 68)
-                    }
-                }
-            }
-            .background(Color("CardBackground"))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.06),
-                    radius: 12, x: 0, y: 4)
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 44)
-        }
-        .scrollIndicators(.hidden)
-        .background(Color("AppBackground").ignoresSafeArea())
-        .navigationTitle("All Shows")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
