@@ -1495,7 +1495,14 @@ struct ShareImageEditorView: View {
                 }
             }
             guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                  let root = scene.windows.first?.rootViewController else { return }
+                  let root = scene.windows.first?.rootViewController else {
+                // The share sheet never gets presented, so its completion handler
+                // won't run — clean up the exported temp video here instead.
+                if let exportedVideoURL = activityItem as? URL {
+                    try? FileManager.default.removeItem(at: exportedVideoURL)
+                }
+                return
+            }
             var top = root
             while let p = top.presentedViewController { top = p }
             if let pop = vc.popoverPresentationController {
