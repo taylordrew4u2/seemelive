@@ -254,6 +254,12 @@ struct ShareImageEditorView: View {
             restoreSavedOptions()
             if cachedImage.size == .zero { regeneratePreview() }
         }
+        .onDisappear {
+            // Remove the copied source video from temp when the editor closes.
+            if let bgVideoURL {
+                try? FileManager.default.removeItem(at: bgVideoURL)
+            }
+        }
         .task {
             await purchaseManager.loadProducts()
             regeneratePreview()
@@ -1481,6 +1487,13 @@ struct ShareImageEditorView: View {
             isRendering = false
 
             let vc = UIActivityViewController(activityItems: [activityItem], applicationActivities: nil)
+            // The exported video is written to a temp file; remove it once the
+            // share sheet is finished with it so exports don't accumulate.
+            if let exportedVideoURL = activityItem as? URL {
+                vc.completionWithItemsHandler = { _, _, _, _ in
+                    try? FileManager.default.removeItem(at: exportedVideoURL)
+                }
+            }
             guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                   let root = scene.windows.first?.rootViewController else { return }
             var top = root
