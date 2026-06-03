@@ -32,7 +32,9 @@ final class PurchaseManager: ObservableObject {
 
     private var transactionUpdatesTask: Task<Void, Never>?
 
-    private init() {
+    /// Internal (not private) so tests can create isolated instances instead of
+    /// mutating the shared singleton; production code should use `.shared`.
+    init() {
         hasRemovedWatermark = UserDefaults.standard.bool(forKey: Self.cachedRemoveWatermarkKey)
         transactionUpdatesTask = Task { [weak self] in
             for await verificationResult in Transaction.updates {

@@ -1528,7 +1528,17 @@ struct ShareImageEditorView: View {
         options: ExportOptions,
         showsWatermark: Bool
     ) async throws -> URL {
-        let asset = AVAsset(url: sourceURL)
+        // Free exports get the same degradation as the still-image path: blur the
+        // underlying video before compositing the watermark overlay. If the blur
+        // pass fails, the caller falls back to a blurred still image.
+        let workingSourceURL = showsWatermark ? try await blurredSourceVideo(sourceURL: sourceURL) : sourceURL
+        defer {
+            if workingSourceURL != sourceURL {
+                try? FileManager.default.removeItem(at: workingSourceURL)
+            }
+        }
+
+        let asset = AVAsset(url: workingSourceURL)
         let composition = AVMutableComposition()
 
         guard let sourceVideoTrack = try await asset.loadTracks(withMediaType: .video).first,
@@ -1607,6 +1617,44 @@ struct ShareImageEditorView: View {
         exportSession.outputFileType = .mp4
         exportSession.videoComposition = videoComposition
         exportSession.shouldOptimizeForNetworkUse = true
+
+        await withCheckedContinuation { continuation in
+            exportSession.exportAsynchronously {
+                continuation.resume()
+            }
+        }
+
+        if exportSession.status == .completed {
+            return outputURL
+        }
+
+        throw exportSession.error ?? VideoBackgroundExportError.exportFailed
+    }
+
+    /// Renders a gaussian-blurred copy of the source video to a temp file.
+    /// Used to degrade free exports the same way still images are blurred.
+    nonisolated private static func blurredSourceVideo(sourceURL: URL) async throws -> URL {
+        let asset = AVAsset(url: sourceURL)
+
+        let videoComposition = try await AVMutableVideoComposition.videoComposition(with: asset) { request in
+            let blurred = request.sourceImage
+                .clampedToExtent()
+                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 6])
+                .cropped(to: request.sourceImage.extent)
+            request.finish(with: blurred, context: nil)
+        }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SEE-ME-LIVE-blur-\(UUID().uuidString)")
+            .appendingPathExtension("mp4")
+        try? FileManager.default.removeItem(at: outputURL)
+
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+            throw VideoBackgroundExportError.exportSessionUnavailable
+        }
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        exportSession.videoComposition = videoComposition
 
         await withCheckedContinuation { continuation in
             exportSession.exportAsynchronously {
