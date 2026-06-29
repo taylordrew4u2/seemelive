@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="screenshots/app-icon.png" alt="My Gig Calendar App Icon" width="120" />
+  <img src="screenshots/app-icon-appstore.jpg" alt="My Gig Calendar App Icon" width="120" />
   <h1>My Gig Calendar</h1>
   <p><strong>The calendar app built for live performers.</strong><br/>Add a show once — stay in sync everywhere.</p>
 
