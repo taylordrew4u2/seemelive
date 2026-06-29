@@ -149,7 +149,7 @@ No third-party Swift dependencies — the app is 100% native Apple frameworks.
 
 ## Architecture
 
-The app is organized around five core services:
+The app is organized around six core services:
 
 ### PersistenceController
 Manages the Core Data stack using `NSPersistentCloudKitContainer`. All show data lives here and syncs automatically to the performer's private iCloud account. Uses `NSMergeByPropertyObjectTrumpMergePolicy` to keep local changes from being overwritten during sync.
@@ -215,7 +215,7 @@ cd seemelive
 open "SEE ME LIVE.xcodeproj"
 ```
 
-Select the **My Gig Calendar** scheme, choose a simulator or connected device, and press **Cmd+R**.
+Select the **SEE ME LIVE** scheme, choose a simulator or connected device, and press **Cmd+R**.
 
 > **Note:** CloudKit features require a valid iCloud account on the device/simulator. The app detects iCloud availability at launch and gracefully disables sync if unavailable.
 
@@ -279,7 +279,7 @@ The test suite covers all core services and utility layers.
 **From the command line:**
 ```bash
 xcodebuild test \
-  -scheme "My Gig Calendar" \
+  -scheme "SEE ME LIVE" \
   -destination "platform=iOS Simulator,name=iPhone 15"
 ```
 
