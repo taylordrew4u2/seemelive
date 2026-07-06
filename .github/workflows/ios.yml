@@ -1,0 +1,55 @@
+name: iOS Build & Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & test (iOS Simulator)
+    # macos-15 ships Xcode 16, required to open the project (format 77).
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun simctl list devices available | grep -i iphone || true
+
+      - name: Build and test
+        run: |
+          set -o pipefail
+          # Skip the one StoreKit test that drives the real Product.purchase()
+          # API: it needs a UI window scene to present the purchase sheet, which
+          # doesn't exist in a headless CI runner (it still runs locally in
+          # Xcode). The other StoreKit tests use SKTestSession.buyProduct and do
+          # run here.
+          xcodebuild test \
+            -project "SEE ME LIVE.xcodeproj" \
+            -scheme "SEE ME LIVE" \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -skip-testing:"SEE ME LIVETests/PurchaseManagerTests/testPurchaseRemoveWatermark_unlocksAndCachesAccess" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult
+          path: TestResults.xcresult
+          if-no-files-found: ignore
